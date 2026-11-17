@@ -83,7 +83,7 @@ export default function App() {
   const [savedCount, setSavedCount] = useState<number>(0);
 
   useEffect(() => {
-    document.title = `${subjectConfig.name} Pintar (by Cikgu Hafreez)`;
+    document.title = `${subjectConfig.name} - eRPH Pintar STEM`;
   }, [subjectConfig.name]);
 
   // Firebase Auth & Profile State

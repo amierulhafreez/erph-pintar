@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SUBJECTS, SubjectConfig } from '../config/subjects';
 import { BackgroundHexPattern } from '../components/ChemistryDecor';
@@ -36,6 +36,10 @@ export const LandingPortal: React.FC = () => {
   const [activeRefSubject, setActiveRefSubject] = useState<string>('kimia');
   const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(false);
   const selectedRef = OFFICIAL_REFERENCES[activeRefSubject] || OFFICIAL_REFERENCES.kimia;
+
+  useEffect(() => {
+    document.title = 'eRPH Pintar STEM';
+  }, []);
 
   const getSubjectIcon = (key: string) => {
     switch (key) {
