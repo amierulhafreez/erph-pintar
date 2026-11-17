@@ -1,0 +1,8 @@
+{
+  "name": "e-RPH Kimia KSSM Pintar",
+  "description": "Aplikasi penyedia Rancangan Pengajaran Harian (RPH) Kimia Tingkatan 4 & 5 KSSM terpantas dan termudah dengan pangkalan data DSKP lengkap dan bantuan AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

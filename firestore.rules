@@ -1,0 +1,244 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          ((request.auth.token.email == "AmierulHafreez@gmail.com" ||
+            request.auth.token.email == "amierulhafreez@gmail.com") &&
+            request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() >= 3 &&
+        email.size() <= 254 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.size() >= 10 &&
+        dateStr.size() <= 40 &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'displayName',
+          'role',
+          'loginCount',
+          'rphGeneratedCount',
+          'lastLoginAt',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'photoURL',
+          'namaSekolah',
+          'role',
+          'accessStatus',
+          'accessCodeUsed',
+          'loginCount',
+          'rphGeneratedCount',
+          'lastLoginAt',
+          'createdAt'
+        ]) &&
+        data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 &&
+        isValidEmail(data.email) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 150 &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+        (!('namaSekolah' in data) || (data.namaSekolah is string && data.namaSekolah.size() <= 200)) &&
+        data.role in ['teacher', 'admin'] &&
+        (!('accessStatus' in data) || data.accessStatus in ['pending', 'active', 'revoked']) &&
+        (!('accessCodeUsed' in data) || (data.accessCodeUsed is string && data.accessCodeUsed.size() <= 60)) &&
+        data.loginCount is int && data.loginCount >= 0 &&
+        data.rphGeneratedCount is int && data.rphGeneratedCount >= 0 &&
+        isValidDateString(data.lastLoginAt) &&
+        isValidDateString(data.createdAt);
+    }
+
+    function isValidAccessCode(data) {
+      return data.keys().hasAll([
+          'code',
+          'status',
+          'note',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'code',
+          'status',
+          'note',
+          'redeemedByUid',
+          'redeemedByEmail',
+          'redeemedByName',
+          'createdAt',
+          'redeemedAt'
+        ]) &&
+        data.code is string && data.code.size() >= 3 && data.code.size() <= 60 &&
+        data.status in ['unused', 'active', 'revoked'] &&
+        data.note is string && data.note.size() <= 300 &&
+        (!('redeemedByUid' in data) || (data.redeemedByUid is string && data.redeemedByUid.size() <= 128)) &&
+        (!('redeemedByEmail' in data) || (data.redeemedByEmail is string && data.redeemedByEmail.size() <= 254)) &&
+        (!('redeemedByName' in data) || (data.redeemedByName is string && data.redeemedByName.size() <= 150)) &&
+        isValidDateString(data.createdAt) &&
+        (!('redeemedAt' in data) || (data.redeemedAt is string && data.redeemedAt.size() <= 40));
+    }
+
+    function isValidSavedRph(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'ownerEmail',
+          'ownerName',
+          'namaSekolah',
+          'tingkatan',
+          'kelas',
+          'babTajuk',
+          'skKod',
+          'spKodList',
+          'modelPdpc',
+          'tarikh',
+          'rphJson',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'ownerEmail',
+          'ownerName',
+          'namaSekolah',
+          'tingkatan',
+          'kelas',
+          'babTajuk',
+          'skKod',
+          'spKodList',
+          'modelPdpc',
+          'tarikh',
+          'rphJson',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 120 &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+        isValidEmail(data.ownerEmail) &&
+        data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 150 &&
+        data.namaSekolah is string && data.namaSekolah.size() <= 200 &&
+        data.tingkatan is string && data.tingkatan.size() <= 50 &&
+        data.kelas is string && data.kelas.size() <= 100 &&
+        data.babTajuk is string && data.babTajuk.size() <= 300 &&
+        data.skKod is string && data.skKod.size() <= 50 &&
+        data.spKodList is string && data.spKodList.size() <= 300 &&
+        data.modelPdpc is string && data.modelPdpc.size() <= 100 &&
+        data.tarikh is string && data.tarikh.size() <= 40 &&
+        data.rphJson is string && data.rphJson.size() >= 2 && data.rphJson.size() <= 90000 &&
+        isValidDateString(data.createdAt) &&
+        isValidDateString(data.updatedAt);
+    }
+
+    function isValidUsageLog(data) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'displayName',
+          'action',
+          'details',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'namaSekolah',
+          'action',
+          'details',
+          'createdAt'
+        ]) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        isValidEmail(data.email) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 150 &&
+        (!('namaSekolah' in data) || (data.namaSekolah is string && data.namaSekolah.size() <= 200)) &&
+        data.action in ['LOGIN', 'AKTIFKAN_KOD', 'JANA_RPH', 'SIMPAN_RPH', 'MUAT_TURUN_WORD', 'GUNA_AI'] &&
+        data.details is string && data.details.size() <= 1000 &&
+        isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) &&
+        isValidUserProfile(request.resource.data) &&
+        request.resource.data.uid == userId &&
+        (request.resource.data.role == 'teacher' || isAdmin());
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        isValidUserProfile(request.resource.data) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /access_codes/{codeId} {
+      // Allow single-document lookup by exact code string, while strictly restricting list to Admin only.
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin() && (request.method == 'delete' || isValidAccessCode(request.resource.data));
+      allow update: if isValidAccessCode(request.resource.data) && (
+        isAdmin() ||
+        (
+          resource.data.status == 'unused' &&
+          request.resource.data.status == 'active' &&
+          request.resource.data.code == resource.data.code &&
+          request.resource.data.note == resource.data.note &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          (!isAuthenticated() || request.resource.data.redeemedByUid == request.auth.uid)
+        )
+      );
+    }
+
+    match /rphs/{rphId} {
+      allow read: if (isAuthenticated() && resource.data.ownerId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        isValidSavedRph(request.resource.data);
+      allow update: if ((isAuthenticated() && resource.data.ownerId == request.auth.uid) || isAdmin()) &&
+        isValidSavedRph(request.resource.data) &&
+        request.resource.data.ownerId == resource.data.ownerId &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if (isAuthenticated() && resource.data.ownerId == request.auth.uid) || isAdmin();
+    }
+
+    match /usage_logs/{logId} {
+      allow read: if (isAuthenticated() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid &&
+        isValidUsageLog(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
