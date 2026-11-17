@@ -14,10 +14,13 @@ import {
   PhysicsAtomWatermark,
   BackgroundHexPattern,
 } from './ChemistryDecor';
+import { getSubjectConfig, SubjectKey } from '../config/subjects';
 import {
   FlaskConical,
   Atom,
   Dna,
+  Calculator,
+  Compass,
   KeyRound,
   LogIn,
   LogOut,
@@ -69,6 +72,13 @@ export const AccessGate: React.FC<AccessGateProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
 
+  const config = getSubjectConfig(currentSubjectKey);
+  const theme = config.themeColor;
+  const subjectName = config.name; // e.g. 'Matematik KSSM'
+  const subjectShort = config.shortName; // e.g. 'Matematik'
+  const formsLabel = config.formsLabel; // e.g. 'Tingkatan 2 – 5'
+  const codePrefix = config.codePrefix; // e.g. 'MATH'
+
   const usedTrials = getUsedTrialCount(currentUser, userProfile);
   const remainingTrials = Math.max(0, FREE_TRIAL_LIMIT - usedTrials);
   const isTrialExhausted = usedTrials >= FREE_TRIAL_LIMIT;
@@ -102,40 +112,348 @@ export const AccessGate: React.FC<AccessGateProps> = ({
     }
   };
 
-  const isPink = currentSubjectKey === 'biologi';
-  const isAmber = currentSubjectKey === 'fizik';
-  const isTurquoise = currentSubjectKey === 'sains';
-  const subjectDisplay = isPink ? 'Biologi' : isAmber ? 'Fizik' : isTurquoise ? 'Sains' : 'Kimia';
+  // Helper styles based on theme
+  const getSelectionClass = () => {
+    switch (theme) {
+      case 'pink':
+        return 'selection:bg-pink-400 theme-pink';
+      case 'amber':
+        return 'selection:bg-amber-400 theme-amber';
+      case 'cyan':
+      case 'teal':
+        return 'selection:bg-sky-400 theme-turquoise';
+      case 'indigo':
+        return 'selection:bg-indigo-500 theme-indigo';
+      case 'charcoal':
+        return 'selection:bg-slate-700 theme-charcoal';
+      default:
+        return 'selection:bg-emerald-500';
+    }
+  };
+
+  const getHeaderIcon = () => {
+    switch (theme) {
+      case 'pink':
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#c45b7c] via-[#d87190] to-[#e587a3] flex items-center justify-center text-white shadow-sm shadow-pink-300/30">
+            <Dna className="w-5 h-5" />
+          </div>
+        );
+      case 'amber':
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#b26112] via-[#c97523] to-[#d98634] flex items-center justify-center text-white shadow-sm shadow-amber-300/30">
+            <Atom className="w-5 h-5" />
+          </div>
+        );
+      case 'cyan':
+      case 'teal':
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-sm shadow-sky-400/25">
+            <Sparkles className="w-5 h-5" />
+          </div>
+        );
+      case 'indigo':
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-sm shadow-indigo-400/30">
+            <Calculator className="w-5 h-5" />
+          </div>
+        );
+      case 'charcoal':
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-800 via-slate-700 to-zinc-600 flex items-center justify-center text-white shadow-sm shadow-slate-700/30">
+            <Compass className="w-5 h-5" />
+          </div>
+        );
+      default:
+        return (
+          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-700 via-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-sm">
+            <FlaskConical className="w-5 h-5" />
+            <Atom className="w-3.5 h-3.5 text-emerald-200 absolute -top-1 -right-1 bg-emerald-800 rounded-full p-0.5" />
+          </div>
+        );
+    }
+  };
+
+  const getHeaderSubTextColor = () => {
+    switch (theme) {
+      case 'pink':
+        return 'text-pink-700';
+      case 'amber':
+        return 'text-amber-700';
+      case 'cyan':
+      case 'teal':
+        return 'text-sky-700';
+      case 'indigo':
+        return 'text-indigo-700';
+      case 'charcoal':
+        return 'text-slate-700';
+      default:
+        return 'text-emerald-700';
+    }
+  };
+
+  const getTrialBtnStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-pink-50 border-pink-200 text-pink-800 hover:bg-pink-100';
+      case 'amber':
+        return 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100';
+      case 'cyan':
+      case 'teal':
+        return 'bg-sky-50 border-sky-200 text-sky-800 hover:bg-sky-100';
+      case 'indigo':
+        return 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100';
+      case 'charcoal':
+        return 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200';
+      default:
+        return 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100';
+    }
+  };
+
+  const getShowcaseGradient = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-gradient-to-br from-slate-900 via-rose-950 to-pink-950 border-pink-800/40';
+      case 'amber':
+        return 'bg-gradient-to-br from-slate-900 via-amber-950 to-orange-950 border-amber-800/40';
+      case 'cyan':
+      case 'teal':
+        return 'bg-gradient-to-br from-slate-900 via-teal-950 to-cyan-950 border-teal-800/40';
+      case 'indigo':
+        return 'bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-950 border-indigo-800/40';
+      case 'charcoal':
+        return 'bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900 border-slate-700/50';
+      default:
+        return 'bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-900 border-emerald-800/40';
+    }
+  };
+
+  const getShowcaseWatermark = () => {
+    switch (theme) {
+      case 'pink':
+        return <BiologyDnaWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />;
+      case 'amber':
+        return <PhysicsAtomWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />;
+      case 'cyan':
+      case 'teal':
+        return <Sparkles className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12 pointer-events-none select-none" />;
+      case 'indigo':
+        return (
+          <svg className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12 pointer-events-none select-none" viewBox="0 0 240 240" fill="none">
+            <circle cx="120" cy="120" r="70" stroke="currentColor" strokeWidth="3" />
+            <polygon points="120,50 180,155 60,155" stroke="currentColor" strokeWidth="3" />
+            <path d="M50 120 L190 120 M120 50 L120 190" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" />
+          </svg>
+        );
+      case 'charcoal':
+        return (
+          <svg className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12 pointer-events-none select-none" viewBox="0 0 240 240" fill="none">
+            <line x1="30" y1="180" x2="210" y2="180" stroke="currentColor" strokeWidth="2.5" />
+            <line x1="60" y1="30" x2="60" y2="210" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M50 170 Q 120 40 190 170" stroke="currentColor" strokeWidth="3.5" />
+          </svg>
+        );
+      default:
+        return (
+          <>
+            <MoleculeWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />
+            <LabApparatusWatermark className="w-48 h-48 text-white/10 absolute right-8 top-6" />
+          </>
+        );
+    }
+  };
+
+  const getShowcasePillStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-pink-400/15 border-pink-400/30 text-pink-300';
+      case 'amber':
+        return 'bg-amber-400/15 border-amber-400/30 text-amber-300';
+      case 'cyan':
+      case 'teal':
+        return 'bg-sky-400/15 border-sky-400/30 text-sky-300';
+      case 'indigo':
+        return 'bg-indigo-400/15 border-indigo-400/30 text-indigo-300';
+      case 'charcoal':
+        return 'bg-slate-400/15 border-slate-400/30 text-slate-300';
+      default:
+        return 'bg-emerald-400/15 border-emerald-400/30 text-emerald-300';
+    }
+  };
+
+  const getShowcaseAccentColor = () => {
+    switch (theme) {
+      case 'pink':
+        return 'text-pink-300';
+      case 'amber':
+        return 'text-amber-300';
+      case 'cyan':
+      case 'teal':
+        return 'text-sky-300';
+      case 'indigo':
+        return 'text-indigo-300';
+      case 'charcoal':
+        return 'text-slate-300';
+      default:
+        return 'text-emerald-300';
+    }
+  };
+
+  const getSubjectCardSpecial = () => {
+    switch (currentSubjectKey) {
+      case 'biologi':
+        return {
+          title: 'Mod Pantas 30s & Carta Bio Maya',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama integrasi Carta Bio Maya, Eksperimen Wajib & DSKP Biologi.',
+        };
+      case 'fizik':
+        return {
+          title: 'Mod Pantas 30s & Rumus Fizik SPM',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama rumus fizik, simulasi vektor & graf, serta eksperimen wajib.',
+        };
+      case 'sains':
+        return {
+          title: 'Mod Pantas 30s & Eksperimen Sains',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama modul eksperimen sains, peta i-Think & simulasi sains.',
+        };
+      case 'matematik':
+        return {
+          title: 'Mod Pantas 30s & Latihan Pengukuhan',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama latihan pengukuhan bertingkat, kalkulator saintifik & aktiviti PAK-21.',
+        };
+      case 'matematik-tambahan':
+        return {
+          title: 'Mod Pantas 30s & Pembuktian Rumus',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama pembuktian rumus, aplikasi kalkulus & latihan pengukuhan aras SPM.',
+        };
+      default:
+        return {
+          title: 'Mod Pantas 30s & Simulasi Digital',
+          desc: 'Jana RPH lengkap dalam 30 saat bersama integrasi Simulasi Kimia Cikgu Hafreez, PhET Simulation & Eksperimen Wajib.',
+        };
+    }
+  };
+
+  const getSubmitBtnStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20';
+      case 'amber':
+        return 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20';
+      case 'cyan':
+      case 'teal':
+        return 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20';
+      case 'indigo':
+        return 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25';
+      case 'charcoal':
+        return 'bg-slate-800 hover:bg-slate-900 shadow-slate-900/25';
+      default:
+        return 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20';
+    }
+  };
+
+  const getFocusRingStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'focus:ring-pink-500/20 focus:border-pink-600';
+      case 'amber':
+        return 'focus:ring-amber-500/20 focus:border-amber-600';
+      case 'cyan':
+      case 'teal':
+        return 'focus:ring-sky-500/20 focus:border-sky-600';
+      case 'indigo':
+        return 'focus:ring-indigo-500/20 focus:border-indigo-600';
+      case 'charcoal':
+        return 'focus:ring-slate-500/20 focus:border-slate-700';
+      default:
+        return 'focus:ring-emerald-500/20 focus:border-emerald-600';
+    }
+  };
+
+  const getRightCardPillStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-pink-100 text-pink-800';
+      case 'amber':
+        return 'bg-amber-100 text-amber-800';
+      case 'cyan':
+      case 'teal':
+        return 'bg-sky-100 text-sky-800';
+      case 'indigo':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'charcoal':
+        return 'bg-slate-200 text-slate-800';
+      default:
+        return 'bg-emerald-100 text-emerald-800';
+    }
+  };
+
+  const getRightCardKeyIconColor = () => {
+    switch (theme) {
+      case 'pink':
+        return 'text-pink-700';
+      case 'amber':
+        return 'text-amber-700';
+      case 'cyan':
+      case 'teal':
+        return 'text-sky-700';
+      case 'indigo':
+        return 'text-indigo-700';
+      case 'charcoal':
+        return 'text-slate-800';
+      default:
+        return 'text-emerald-700';
+    }
+  };
+
+  const getContinueTrialBtnStyle = () => {
+    switch (theme) {
+      case 'pink':
+        return 'bg-pink-50 hover:bg-pink-100 border-pink-300 text-pink-900';
+      case 'amber':
+        return 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900';
+      case 'cyan':
+      case 'teal':
+        return 'bg-sky-50 hover:bg-sky-100 border-sky-300 text-sky-900';
+      case 'indigo':
+        return 'bg-indigo-50 hover:bg-indigo-100 border-indigo-300 text-indigo-900';
+      case 'charcoal':
+        return 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-900';
+      default:
+        return 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900';
+    }
+  };
+
+  const specialCard = getSubjectCardSpecial();
 
   return (
-    <div className={`relative min-h-screen bg-slate-100/80 text-slate-800 flex flex-col justify-between font-sans ${isPink ? 'selection:bg-pink-400 theme-pink' : isAmber ? 'selection:bg-amber-400 theme-amber' : isTurquoise ? 'selection:bg-sky-400 theme-turquoise' : 'selection:bg-emerald-500'} selection:text-white`}>
-      <BackgroundHexPattern theme={isPink ? 'pink' : isAmber ? 'amber' : isTurquoise ? 'teal' : 'emerald'} />
+    <div
+      className={`relative min-h-screen bg-slate-100/80 text-slate-800 flex flex-col justify-between font-sans ${getSelectionClass()} selection:text-white`}
+    >
+      <BackgroundHexPattern
+        theme={
+          theme === 'pink'
+            ? 'pink'
+            : theme === 'amber'
+            ? 'amber'
+            : theme === 'cyan' || theme === 'teal'
+            ? 'teal'
+            : theme === 'indigo'
+            ? 'indigo'
+            : theme === 'charcoal'
+            ? 'charcoal'
+            : 'emerald'
+        }
+      />
 
       {/* Top Bar */}
       <header className="relative z-20 bg-white/95 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            {isPink ? (
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#c45b7c] via-[#d87190] to-[#e587a3] flex items-center justify-center text-white shadow-sm shadow-pink-300/30">
-                <Dna className="w-5 h-5" />
-              </div>
-            ) : isAmber ? (
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#b26112] via-[#c97523] to-[#d98634] flex items-center justify-center text-white shadow-sm shadow-amber-300/30">
-                <Atom className="w-5 h-5" />
-              </div>
-            ) : isTurquoise ? (
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-sm shadow-sky-400/25">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            ) : (
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-700 via-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-sm">
-                <FlaskConical className="w-5 h-5" />
-                <Atom className="w-3.5 h-3.5 text-emerald-200 absolute -top-1 -right-1 bg-emerald-800 rounded-full p-0.5" />
-              </div>
-            )}
+            {getHeaderIcon()}
             <span className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight whitespace-nowrap">
-              e-RPH {subjectDisplay} KSSM Pintar{' '}
-              <span className={`${isPink ? 'text-pink-700' : isAmber ? 'text-amber-700' : isTurquoise ? 'text-sky-700' : 'text-emerald-700'} font-bold text-sm sm:text-base`}>
+              e-RPH {subjectShort} KSSM Pintar{' '}
+              <span className={`${getHeaderSubTextColor()} font-bold text-sm sm:text-base`}>
                 (by Cikgu Hafreez)
               </span>
             </span>
@@ -146,15 +464,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
               <button
                 type="button"
                 onClick={onBackToTrial}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${
-                  isPink
-                    ? 'bg-pink-50 border-pink-200 text-pink-800 hover:bg-pink-100'
-                    : isAmber
-                    ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
-                    : isTurquoise
-                    ? 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-                } border text-xs font-bold transition`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${getTrialBtnStyle()} border text-xs font-bold transition`}
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Kembali ke Percubaan ({remainingTrials} Baki)</span>
@@ -184,38 +494,15 @@ export const AccessGate: React.FC<AccessGateProps> = ({
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-10">
         <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
           {/* Left Showcase Panel */}
-          <div className={`lg:col-span-7 relative overflow-hidden rounded-2xl ${
-            isPink
-              ? 'bg-gradient-to-br from-slate-900 via-rose-950 to-pink-950 border-pink-800/40'
-              : isAmber
-              ? 'bg-gradient-to-br from-slate-900 via-amber-950 to-orange-950 border-amber-800/40'
-              : isTurquoise
-              ? 'bg-gradient-to-br from-slate-900 via-teal-950 to-cyan-950 border-teal-800/40'
-              : 'bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-900 border-emerald-800/40'
-          } text-white p-8 sm:p-10 flex flex-col justify-between border shadow-xl`}>
-            {isPink ? (
-              <BiologyDnaWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />
-            ) : isAmber ? (
-              <PhysicsAtomWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />
-            ) : isTurquoise ? (
-              <MoleculeWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />
-            ) : (
-              <>
-                <MoleculeWatermark className="w-64 h-64 text-white/10 absolute -right-10 -bottom-12" />
-                <LabApparatusWatermark className="w-48 h-48 text-white/10 absolute right-8 top-6" />
-              </>
-            )}
+          <div
+            className={`lg:col-span-7 relative overflow-hidden rounded-2xl ${getShowcaseGradient()} text-white p-8 sm:p-10 flex flex-col justify-between border shadow-xl`}
+          >
+            {getShowcaseWatermark()}
 
             <div className="relative z-10 space-y-5">
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${
-                isPink
-                  ? 'bg-pink-400/15 border-pink-400/30 text-pink-300'
-                  : isAmber
-                  ? 'bg-amber-400/15 border-amber-400/30 text-amber-300'
-                  : isTurquoise
-                  ? 'bg-teal-400/15 border-teal-400/30 text-teal-300'
-                  : 'bg-emerald-400/15 border-emerald-400/30 text-emerald-300'
-              } border text-xs font-bold tracking-wide`}>
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg ${getShowcasePillStyle()} border text-xs font-bold tracking-wide`}
+              >
                 <Gift className="w-4 h-4 text-amber-300" />
                 <span>
                   Cuba Percuma {FREE_TRIAL_LIMIT} Kali Janaan RPH · Tiada Kad Kredit Diperlukan
@@ -223,14 +510,14 @@ export const AccessGate: React.FC<AccessGateProps> = ({
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug text-white">
-                Sediakan RPH {subjectDisplay} KSSM &amp; DLP Lengkap Dalam Masa 30 Saat.
+                Sediakan RPH {subjectShort} KSSM &amp; DLP Lengkap Dalam Masa 30 Saat.
               </h1>
 
               <p className="text-sm text-slate-300 leading-relaxed max-w-xl">
                 Dibangunkan khusus oleh <strong>Cikgu Hafreez</strong> untuk
-                memudahkan guru-guru {subjectDisplay} SMK &amp; MRSM menjana Rancangan
+                memudahkan guru-guru {subjectShort} SMK &amp; MRSM menjana Rancangan
                 Pengajaran Harian mengikut DSKP terkini. Log masuk sekarang untuk mencuba{' '}
-                <strong className={isPink ? 'text-pink-300' : isAmber ? 'text-amber-300' : isTurquoise ? 'text-teal-300' : 'text-emerald-300'}>
+                <strong className={getShowcaseAccentColor()}>
                   {FREE_TRIAL_LIMIT} kali janaan RPH secara percuma
                 </strong>
                 !
@@ -238,9 +525,11 @@ export const AccessGate: React.FC<AccessGateProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1.5">
-                  <div className={`flex items-center gap-2 ${isPink ? 'text-pink-300' : isAmber ? 'text-amber-300' : 'text-emerald-300'} font-bold text-xs`}>
+                  <div
+                    className={`flex items-center gap-2 ${getShowcaseAccentColor()} font-bold text-xs`}
+                  >
                     <BookOpen className="w-4 h-4 shrink-0" />
-                    <span>DSKP Lengkap BM &amp; DLP (T4 &amp; T5)</span>
+                    <span>DSKP Lengkap BM &amp; DLP ({formsLabel})</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
                     Pilihan dropdown bertingkat (Bab → SK → SP), sokongan berbilang SP, serta Slot Ulangkaji, Gemilang &amp; Mumtaz.
@@ -248,7 +537,9 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
+                  <div
+                    className={`flex items-center gap-2 ${getShowcaseAccentColor()} font-bold text-xs`}
+                  >
                     <Layers className="w-4 h-4 shrink-0" />
                     <span>Standard KPM, 5E HIKMAH &amp; 1-M/S</span>
                   </div>
@@ -258,17 +549,21 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
+                  <div
+                    className={`flex items-center gap-2 ${getShowcaseAccentColor()} font-bold text-xs`}
+                  >
                     <Sparkles className="w-4 h-4 shrink-0" />
-                    <span>Mod Pantas 30s &amp; Simulasi Digital</span>
+                    <span>{specialCard.title}</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Jana RPH lengkap dalam 30 saat bersama integrasi Simulasi Kimia Cikgu Hafreez, PhET Simulation &amp; Eksperimen Wajib.
+                    {specialCard.desc}
                   </p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1.5">
-                  <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs">
+                  <div
+                    className={`flex items-center gap-2 ${getShowcaseAccentColor()} font-bold text-xs`}
+                  >
                     <FileDown className="w-4 h-4 shrink-0" />
                     <span>Jadual AI, Classroom &amp; OneNote</span>
                   </div>
@@ -292,8 +587,10 @@ export const AccessGate: React.FC<AccessGateProps> = ({
             {!currentUser ? (
               <div className="space-y-3.5 pb-5 border-b border-slate-100">
                 <div className="space-y-1">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-extrabold mb-1">
-                    <Gift className="w-3.5 h-3.5 text-emerald-600" />
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${getRightCardPillStyle()} text-[11px] font-extrabold mb-1`}
+                  >
+                    <Gift className="w-3.5 h-3.5" />
                     <span>
                       {remainingTrials > 0
                         ? `PERCUBAAN PERCUMA (${remainingTrials}/${FREE_TRIAL_LIMIT} JANAAN TERSEDIA)`
@@ -305,7 +602,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                   </h2>
                   <p className="text-xs text-slate-600 leading-relaxed">
                     {remainingTrials > 0
-                      ? `Log masuk menggunakan akaun Google anda untuk terus mencuba semua ciri e-RPH Kimia secara percuma sebanyak ${FREE_TRIAL_LIMIT} kali janaan RPH.`
+                      ? `Log masuk menggunakan akaun Google anda untuk terus mencuba semua ciri e-RPH ${subjectShort} secara percuma sebanyak ${FREE_TRIAL_LIMIT} kali janaan RPH.`
                       : `Anda telah menggunakan kesemua ${FREE_TRIAL_LIMIT} percubaan percuma. Sila log masuk dan masukkan Kod Akses Unik di bawah.`}
                   </p>
                 </div>
@@ -315,7 +612,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                   onClick={onGoogleLogin}
                   className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-sm"
                 >
-                  <LogIn className="w-4 h-4 text-emerald-400" />
+                  <LogIn className={`w-4 h-4 ${getShowcaseAccentColor()}`} />
                   <span>
                     {remainingTrials > 0
                       ? `Log Masuk Google & Cuba Percuma (${remainingTrials}x)`
@@ -349,17 +646,31 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                       <img
                         src={currentUser.photoURL}
                         alt={currentUser.displayName || 'Guru'}
-                        className="w-9 h-9 rounded-full border border-emerald-300 shrink-0"
+                        className="w-9 h-9 rounded-full border border-slate-300 shrink-0"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                      <div
+                        className={`w-9 h-9 rounded-full ${
+                          theme === 'pink'
+                            ? 'bg-pink-600'
+                            : theme === 'amber'
+                            ? 'bg-amber-600'
+                            : theme === 'cyan' || theme === 'teal'
+                            ? 'bg-sky-600'
+                            : theme === 'indigo'
+                            ? 'bg-indigo-600'
+                            : theme === 'charcoal'
+                            ? 'bg-slate-700'
+                            : 'bg-emerald-600'
+                        } text-white flex items-center justify-center font-bold text-sm shrink-0`}
+                      >
                         {(currentUser.displayName || 'G').charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-900 truncate">
-                        {currentUser.displayName || 'Guru Kimia'}
+                        {currentUser.displayName || `Guru ${subjectShort}`}
                       </p>
                       <p className="text-[11px] text-slate-500 truncate">
                         {currentUser.email}
@@ -372,7 +683,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                         ? 'text-red-700 bg-red-50 border-red-200'
                         : isTrialExhausted
                         ? 'text-amber-800 bg-amber-50 border-amber-200'
-                        : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                        : `${getRightCardPillStyle()} border-current/20`
                     }`}
                   >
                     {isRevoked
@@ -388,9 +699,9 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                   <button
                     type="button"
                     onClick={onBackToTrial}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-extrabold text-xs transition flex items-center justify-center gap-2"
+                    className={`w-full py-2.5 px-4 rounded-xl ${getContinueTrialBtnStyle()} border font-extrabold text-xs transition flex items-center justify-center gap-2`}
                   >
-                    <Gift className="w-4 h-4 text-emerald-600" />
+                    <Gift className="w-4 h-4" />
                     <span>
                       Teruskan Mencuba Aplikasi (Baki {remainingTrials} daripada {FREE_TRIAL_LIMIT} Percubaan Percuma)
                     </span>
@@ -399,7 +710,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
               </div>
             )}
 
-            {/* Banner when 7 Free Trials are exhausted */}
+            {/* Banner when Free Trials are exhausted */}
             {isTrialExhausted && !isRevoked && (
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs space-y-1.5">
                 <div className="font-extrabold text-sm flex items-center gap-1.5 text-amber-900">
@@ -409,7 +720,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                   </span>
                 </div>
                 <p className="text-amber-800 leading-relaxed">
-                  Terima kasih kerana telah mencuba <strong>{FREE_TRIAL_LIMIT} kali janaan RPH percuma</strong>! Untuk terus menjana dan memuat turun RPH {subjectDisplay} tanpa had, sila dapatkan <strong>Kod Akses Unik</strong> daripada <strong>Cikgu Hafreez</strong> dan masukkan di bawah.
+                  Terima kasih kerana telah mencuba <strong>{FREE_TRIAL_LIMIT} kali janaan RPH percuma</strong>! Untuk terus menjana dan memuat turun RPH {subjectShort} tanpa had, sila dapatkan <strong>Kod Akses Unik</strong> daripada <strong>Cikgu Hafreez</strong> dan masukkan di bawah.
                 </p>
               </div>
             )}
@@ -433,7 +744,9 @@ export const AccessGate: React.FC<AccessGateProps> = ({
             {/* Step 2: Unique Access Code Verification */}
             <div className="space-y-4">
               <div className="space-y-1">
-                <div className={`flex items-center gap-1.5 ${isPink ? 'text-pink-700' : isAmber ? 'text-amber-700' : 'text-emerald-700'} font-bold text-xs`}>
+                <div
+                  className={`flex items-center gap-1.5 ${getRightCardKeyIconColor()} font-bold text-xs`}
+                >
                   <KeyRound className="w-4 h-4" />
                   <span>
                     {isTrialExhausted
@@ -453,8 +766,8 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                     type="text"
                     value={codeInput}
                     onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                    placeholder={`${currentSubjectKey.toUpperCase()}-XXXXXX`}
-                    className={`w-full px-4 py-3 text-base font-mono tabular-nums font-bold tracking-widest uppercase rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 ${isPink ? 'focus:ring-pink-500/20 focus:border-pink-600' : isAmber ? 'focus:ring-amber-500/20 focus:border-amber-600' : 'focus:ring-emerald-500/20 focus:border-emerald-600'} bg-slate-50 text-slate-900 placeholder:text-slate-400`}
+                    placeholder={`${codePrefix}-XXXXXX`}
+                    className={`w-full px-4 py-3 text-base font-mono tabular-nums font-bold tracking-widest uppercase rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 ${getFocusRingStyle()} bg-slate-50 text-slate-900 placeholder:text-slate-400`}
                   />
                 </div>
 
@@ -475,15 +788,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className={`w-full py-3 px-5 rounded-xl ${
-                    isPink
-                      ? 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20'
-                      : isAmber
-                      ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
-                      : isTurquoise
-                      ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
-                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-                  } disabled:opacity-60 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md`}
+                  className={`w-full py-3 px-5 rounded-xl ${getSubmitBtnStyle()} disabled:opacity-60 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md`}
                 >
                   <span>
                     {submitting
@@ -581,7 +886,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
                 Imbas Kod QR WhatsApp
               </h3>
               <p className="text-xs text-slate-500">
-                Imbas menggunakan kamera WhatsApp anda untuk mendapatkan Kod Akses Unik e-RPH Kimia.
+                Imbas menggunakan kamera WhatsApp anda untuk mendapatkan Kod Akses Unik e-RPH {subjectShort}.
               </p>
             </div>
 
@@ -619,7 +924,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({
       <footer className="relative z-10 bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="font-semibold text-slate-700">
-            e-RPH Kimia KSSM Pintar (by Cikgu Hafreez)
+            e-RPH {subjectName} Pintar (by Cikgu Hafreez)
           </p>
           <p className="text-slate-400">
             Percubaan Percuma {FREE_TRIAL_LIMIT}x Janaan RPH · Sistem Berlesen Individu
