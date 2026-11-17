@@ -32,14 +32,32 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-export const LandingPortal: React.FC = () => {
+interface LandingPortalProps {
+  openFeedbackOnLoad?: boolean;
+}
+
+export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad = false }) => {
   const [activeRefSubject, setActiveRefSubject] = useState<string>('kimia');
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(openFeedbackOnLoad);
   const selectedRef = OFFICIAL_REFERENCES[activeRefSubject] || OFFICIAL_REFERENCES.kimia;
 
   useEffect(() => {
-    document.title = 'eRPH Pintar STEM';
-  }, []);
+    const isFeedbackPath =
+      openFeedbackOnLoad ||
+      window.location.pathname.includes('maklum-balas') ||
+      window.location.pathname.includes('maklumbalas') ||
+      window.location.pathname.includes('feedback') ||
+      window.location.hash === '#maklum-balas' ||
+      window.location.search.includes('maklum-balas') ||
+      window.location.search.includes('feedback');
+
+    if (isFeedbackPath) {
+      setIsFeedbackOpen(true);
+      document.title = 'Borang Maklum Balas | eRPH Pintar STEM';
+    } else {
+      document.title = 'eRPH Pintar STEM';
+    }
+  }, [openFeedbackOnLoad]);
 
   const getSubjectIcon = (key: string) => {
     switch (key) {
@@ -778,7 +796,17 @@ export const LandingPortal: React.FC = () => {
 
       <FeedbackModal
         isOpen={isFeedbackOpen}
-        onClose={() => setIsFeedbackOpen(false)}
+        onClose={() => {
+          setIsFeedbackOpen(false);
+          if (
+            window.location.pathname.includes('maklum-balas') ||
+            window.location.pathname.includes('maklumbalas') ||
+            window.location.pathname.includes('feedback')
+          ) {
+            window.history.replaceState(null, '', '/');
+          }
+          document.title = 'eRPH Pintar STEM';
+        }}
       />
     </div>
   );

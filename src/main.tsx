@@ -10,6 +10,11 @@ createRoot(document.getElementById('root')!).render(
       {/* Landing Portal for all subjects */}
       <Route path="/" element={<LandingPortal />} />
 
+      {/* Direct links to Feedback Modal */}
+      <Route path="/maklum-balas" element={<LandingPortal openFeedbackOnLoad />} />
+      <Route path="/maklumbalas" element={<LandingPortal openFeedbackOnLoad />} />
+      <Route path="/feedback" element={<LandingPortal openFeedbackOnLoad />} />
+
       {/* Dynamic subject routes: /kimia, /biologi, /fizik, /sains, /matematik, /matematik-tambahan */}
       <Route path="/:subjectParam" element={<App />} />
 

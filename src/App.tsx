@@ -114,6 +114,16 @@ export default function App() {
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
 
   useEffect(() => {
+    if (
+      window.location.hash === '#maklum-balas' ||
+      window.location.search.includes('maklum-balas') ||
+      window.location.search.includes('feedback')
+    ) {
+      setIsFeedbackOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
     setLocalLicense(muatLesenTempatan(activeSubjectKey));
     // Set default subject if matching subject exists
     if (activeSubjectKey === 'biologi' && rph.subjek !== 'Biologi') {
