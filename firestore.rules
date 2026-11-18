@@ -240,5 +240,9 @@ service cloud.firestore {
         isValidUsageLog(request.resource.data);
       allow update, delete: if isAdmin();
     }
+
+    match /visitor_stats/{docId} {
+      allow read, write: if true;
+    }
   }
 }

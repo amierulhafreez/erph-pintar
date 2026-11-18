@@ -17,6 +17,7 @@ import {
   FREE_TRIAL_LIMIT,
 } from '../services/firebase';
 import { RPHData } from '../types/rph';
+import { fetchVisitorStats, VisitorStats } from '../services/visitorTracker';
 import {
   ShieldCheck,
   Users,
@@ -61,6 +62,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [logs, setLogs] = useState<UsageLogDoc[]>([]);
   const [cloudRphs, setCloudRphs] = useState<SavedRphDoc[]>([]);
   const [feedbackList, setFeedbackList] = useState<any[]>([]);
+  const [visitorStats, setVisitorStats] = useState<VisitorStats | null>(null);
   const [googleDriveUrl, setGoogleDriveUrl] = useState<string>(() =>
     localStorage.getItem('erph_google_drive_sheet_url') || ''
   );
@@ -75,6 +77,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchVisitorStats().then(setVisitorStats).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -383,7 +389,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         </div>
 
         {/* Summary KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 border-b border-slate-200">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200">
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+              <span>Pelawat Portal</span>
+              <Eye className="w-4 h-4 text-purple-600" />
+            </div>
+            <p className="text-2xl font-extrabold text-slate-900 mt-1 tabular-nums">
+              {visitorStats?.total || 0}
+            </p>
+            <p className="text-[11px] text-purple-700 font-medium">
+              +{visitorStats?.today || 0} Hari Ini
+            </p>
+          </div>
+
           <div className="bg-white p-3.5 rounded-xl border border-slate-200">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
               <span>Kod Akses Aktif / Tersedia</span>

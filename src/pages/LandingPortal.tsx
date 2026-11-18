@@ -4,6 +4,7 @@ import { SUBJECTS, SubjectConfig } from '../config/subjects';
 import { BackgroundHexPattern } from '../components/ChemistryDecor';
 import { OFFICIAL_REFERENCES, SubjectOfficialReference } from '../data/officialReferences';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { recordLandingVisit, VisitorStats } from '../services/visitorTracker';
 import {
   Sparkles,
   BookOpen,
@@ -30,6 +31,8 @@ import {
   FileText,
   BookmarkCheck,
   HelpCircle,
+  Users,
+  Eye,
 } from 'lucide-react';
 
 interface LandingPortalProps {
@@ -39,7 +42,15 @@ interface LandingPortalProps {
 export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad = false }) => {
   const [activeRefSubject, setActiveRefSubject] = useState<string>('kimia');
   const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(openFeedbackOnLoad);
+  const [visitorStats, setVisitorStats] = useState<VisitorStats | null>(null);
   const selectedRef = OFFICIAL_REFERENCES[activeRefSubject] || OFFICIAL_REFERENCES.kimia;
+
+  useEffect(() => {
+    // Record visitor count whenever user visits landing page
+    recordLandingVisit()
+      .then((stats) => setVisitorStats(stats))
+      .catch((err) => console.warn('Visitor record error:', err));
+  }, []);
 
   useEffect(() => {
     const isFeedbackPath =
@@ -225,6 +236,20 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad
           </div>
 
           <div className="flex items-center gap-2.5">
+            {visitorStats && (
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/[0.04] hover:bg-slate-900/[0.07] border border-slate-900/10 text-xs font-bold text-slate-700 shadow-2xs transition-all"
+                title="Jumlah lawatan yang direkodkan ke portal e-RPH Pintar"
+              >
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <Users className="w-3.5 h-3.5 text-slate-500" />
+                <span>{visitorStats.total.toLocaleString()} Pelawat</span>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => setIsFeedbackOpen(true)}
@@ -248,17 +273,33 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-16 space-y-14 flex-1 w-full">
         {/* Apple Keynote Hero Section */}
         <div className="text-center max-w-3xl mx-auto space-y-5">
-          {/* Top Apple Pill Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/90 shadow-[0_4px_16px_-4px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] text-slate-800 text-xs font-bold tracking-tight">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-slate-500 font-medium">e-RPH PINTAR 2.0</span>
-            <span className="text-slate-300">•</span>
-            <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent font-bold">
-              Ekosistem RPH Generasi Baharu
-            </span>
+          {/* Top Apple Pill Badge & Visitor Traffic */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/90 shadow-[0_4px_16px_-4px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] text-slate-800 text-xs font-bold tracking-tight">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-slate-500 font-medium">e-RPH PINTAR 2.0</span>
+              <span className="text-slate-300">•</span>
+              <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent font-bold">
+                Ekosistem RPH Generasi Baharu
+              </span>
+            </div>
+
+            {visitorStats && (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/[0.04] border border-slate-900/10 text-xs font-semibold text-slate-700 shadow-2xs backdrop-blur-md">
+                <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  <strong className="text-slate-900 font-bold">{visitorStats.total.toLocaleString()}</strong> lawatan guru
+                </span>
+                {visitorStats.today > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 font-extrabold">
+                    +{visitorStats.today} hari ini
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Headline */}
@@ -764,9 +805,17 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad
       {/* Apple Minimal Footer */}
       <footer className="relative z-10 border-t border-slate-900/5 bg-white/40 backdrop-blur-md py-6 px-4 sm:px-8 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="font-medium">
-            © {new Date().getFullYear()} e-RPH Pintar. Hak Cipta Terpelihara Cikgu Hafreez.
-          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <p className="font-medium">
+              © {new Date().getFullYear()} e-RPH Pintar. Hak Cipta Terpelihara Cikgu Hafreez.
+            </p>
+            {visitorStats && (
+              <span className="hidden md:inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-slate-200/60 font-semibold text-slate-700">
+                <Users className="w-3 h-3 text-slate-500" />
+                <span>Jumlah Lawatan: <strong className="text-slate-900">{visitorStats.total.toLocaleString()}</strong></span>
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs font-semibold text-slate-600">
             <a href="#rujukan-rasmi" className="hover:text-blue-600 transition-colors">
               Rujukan DSKP &amp; Buku Teks
