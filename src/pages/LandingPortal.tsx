@@ -204,19 +204,21 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({ openFeedbackOnLoad
       <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-2xl border-b border-white/60 shadow-[0_4px_24px_-4px_rgba(15,23,42,0.03)] px-4 sm:px-8 py-3.5 transition-all">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[14px] bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-500 flex items-center justify-center text-white shadow-[0_4px_14px_rgba(16,185,129,0.35),inset_0_1px_1px_rgba(255,255,255,0.6)]">
-              <Sparkles className="w-5 h-5 drop-shadow-xs" />
-            </div>
+            <img
+              src="/assets/logo.png"
+              alt="e-RPH Pintar"
+              className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl object-cover shadow-md shadow-amber-950/20 ring-1.5 ring-amber-400/40 shrink-0"
+            />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-black tracking-[-0.03em] text-slate-900 leading-none">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-[-0.03em] text-slate-900 leading-none">
                   e-RPH Pintar
                 </h1>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-900/5 text-slate-700 font-semibold border border-slate-900/10">
+                <span className="text-xs sm:text-sm px-2.5 py-0.5 rounded-full bg-slate-900/5 text-slate-700 font-bold border border-slate-900/10">
                   by Cikgu Hafreez
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium tracking-tight mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 font-medium tracking-tight mt-0.5">
                 Portal Janaan RPH KSSM Lengkap DSKP, AI &amp; Pedagogi HIKMAH
               </p>
             </div>

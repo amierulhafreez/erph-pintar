@@ -132,46 +132,13 @@ export const AccessGate: React.FC<AccessGateProps> = ({
   };
 
   const getHeaderIcon = () => {
-    switch (theme) {
-      case 'pink':
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#c45b7c] via-[#d87190] to-[#e587a3] flex items-center justify-center text-white shadow-sm shadow-pink-300/30">
-            <Dna className="w-5 h-5" />
-          </div>
-        );
-      case 'amber':
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-[#b26112] via-[#c97523] to-[#d98634] flex items-center justify-center text-white shadow-sm shadow-amber-300/30">
-            <Atom className="w-5 h-5" />
-          </div>
-        );
-      case 'cyan':
-      case 'teal':
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-sm shadow-sky-400/25">
-            <Sparkles className="w-5 h-5" />
-          </div>
-        );
-      case 'indigo':
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-sm shadow-indigo-400/30">
-            <Calculator className="w-5 h-5" />
-          </div>
-        );
-      case 'charcoal':
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-800 via-slate-700 to-zinc-600 flex items-center justify-center text-white shadow-sm shadow-slate-700/30">
-            <Compass className="w-5 h-5" />
-          </div>
-        );
-      default:
-        return (
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-700 via-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-sm">
-            <FlaskConical className="w-5 h-5" />
-            <Atom className="w-3.5 h-3.5 text-emerald-200 absolute -top-1 -right-1 bg-emerald-800 rounded-full p-0.5" />
-          </div>
-        );
-    }
+    return (
+      <img
+        src="/assets/logo.png"
+        alt="e-RPH Pintar"
+        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl object-cover shadow-md shadow-amber-950/20 ring-1.5 ring-amber-400/40 shrink-0"
+      />
+    );
   };
 
   const getHeaderSubTextColor = () => {
@@ -451,9 +418,9 @@ export const AccessGate: React.FC<AccessGateProps> = ({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {getHeaderIcon()}
-            <span className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight whitespace-nowrap">
+            <span className="font-black text-lg sm:text-xl lg:text-2xl text-slate-900 tracking-tight whitespace-nowrap">
               e-RPH {subjectShort} KSSM Pintar{' '}
-              <span className={`${getHeaderSubTextColor()} font-bold text-sm sm:text-base`}>
+              <span className={`${getHeaderSubTextColor()} font-bold text-xs sm:text-sm lg:text-base`}>
                 (by Cikgu Hafreez)
               </span>
             </span>

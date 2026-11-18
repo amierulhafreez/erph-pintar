@@ -84,38 +84,17 @@ export const WizardHeader: React.FC<WizardHeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Navbar */}
         <div className="py-2 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200/60">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            {isPink ? (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#c45b7c] via-[#d87190] to-[#e587a3] flex items-center justify-center text-white shadow-sm shadow-pink-300/30 ring-1 ring-white/50 shrink-0">
-                <Dna className="w-5 h-5" />
-              </div>
-            ) : isAmber ? (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#b26112] via-[#c97523] to-[#d98634] flex items-center justify-center text-white shadow-sm shadow-amber-300/30 ring-1 ring-white/50 shrink-0">
-                <Atom className="w-5 h-5" />
-              </div>
-            ) : isTurquoise ? (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-sm shadow-sky-400/25 ring-1 ring-white/50 shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            ) : isIndigo ? (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#312e81] via-[#3730a3] to-[#4f46e5] flex items-center justify-center text-white shadow-sm shadow-indigo-300/30 ring-1 ring-white/50 shrink-0">
-                <Calculator className="w-5 h-5" />
-              </div>
-            ) : isCharcoal ? (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#0f172a] via-[#1e293b] to-[#334155] flex items-center justify-center text-white shadow-sm shadow-slate-400/30 ring-1 ring-white/50 shrink-0">
-                <Compass className="w-5 h-5" />
-              </div>
-            ) : (
-              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 ring-1 ring-white/50 shrink-0">
-                <FlaskConical className="w-5 h-5" />
-                <Atom className="w-3 h-3 text-emerald-200 absolute -top-1 -right-1 bg-emerald-800 rounded-full p-0.5" />
-              </div>
-            )}
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <img
+              src="/assets/logo.png"
+              alt="e-RPH Pintar"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover shadow-md shadow-amber-950/20 ring-1.5 ring-amber-400/40 shrink-0 hover:scale-105 transition-transform"
+            />
             <div className="min-w-0">
-              <div className="flex items-center flex-wrap gap-1.5">
-                <span className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight">
+              <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                <span className="font-black text-lg sm:text-xl lg:text-2xl text-slate-900 tracking-tight leading-tight">
                   {subjectTitle || `e-RPH ${subjek} KSSM Pintar`}{' '}
-                  <span className={`${isPink ? 'text-pink-700' : isAmber ? 'text-amber-700' : isTurquoise ? 'text-sky-700' : isIndigo ? 'text-indigo-700' : 'text-emerald-700'} font-bold text-xs sm:text-sm`}>
+                  <span className={`${isPink ? 'text-pink-700' : isAmber ? 'text-amber-700' : isTurquoise ? 'text-sky-700' : isIndigo ? 'text-indigo-700' : 'text-emerald-700'} font-bold text-xs sm:text-sm lg:text-base`}>
                     (by Cikgu Hafreez)
                   </span>
                 </span>
