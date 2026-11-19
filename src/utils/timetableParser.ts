@@ -29,8 +29,17 @@ export interface SpatialWord {
   y1: number;
 }
 
+export interface TimetableSection {
+  id: string;
+  label: string;
+  pageNum: number;
+  slots: Omit<SlotJadualWaktu, 'id'>[];
+}
+
 export interface TimetableParseResult {
   slots: Omit<SlotJadualWaktu, 'id'>[];
+  sections?: TimetableSection[];
+  selectedSectionId?: string;
   previewDataUrl?: string;
   method: string;
 }
@@ -48,33 +57,33 @@ const DAY_ORDER: Record<string, number> = {
 const DAY_PATTERNS: { day: string; regex: RegExp }[] = [
   {
     day: 'Isnin',
-    regex: /\b(?:isnin|isn|monday|mon|hari\s*isnin|1snin|isn1n|lSNIN)\b/i,
+    regex: /\b(?:isnin|isn|monday|mon|mo|hari\s*isnin|1snin|isn1n|lSNIN)\b/i,
   },
   {
     day: 'Selasa',
-    regex: /\b(?:selasa|sel|tuesday|tues|tue|hari\s*selasa|5elasa)\b/i,
+    regex: /\b(?:selasa|sel|tuesday|tues|tue|tu|hari\s*selasa|5elasa)\b/i,
   },
   {
     day: 'Rabu',
-    regex: /\b(?:rabu|rab|wednesday|wed|hari\s*rabu)\b/i,
+    regex: /\b(?:rabu|rab|wednesday|wed|we|hari\s*rabu)\b/i,
   },
   {
     day: 'Khamis',
     regex:
-      /\b(?:khamis|kha|khm|thursday|thurs|thur|thu|hari\s*khamis|kham1s)\b/i,
+      /\b(?:khamis|kha|khm|thursday|thurs|thur|thu|th|hari\s*khamis|kham1s)\b/i,
   },
   {
     day: 'Jumaat',
     regex:
-      /\b(?:jumaat|jum|jmt|friday|fri|hari\s*jumaat|juma'at|jumat)\b/i,
+      /\b(?:jumaat|jum|jmt|friday|fri|fr|hari\s*jumaat|juma'at|jumat)\b/i,
   },
   {
     day: 'Ahad',
-    regex: /\b(?:ahad|aha|ahd|sunday|sun|hari\s*ahad)\b/i,
+    regex: /\b(?:ahad|aha|ahd|sunday|sun|su|hari\s*ahad)\b/i,
   },
   {
     day: 'Sabtu',
-    regex: /\b(?:sabtu|sab|saturday|sat|hari\s*sabtu)\b/i,
+    regex: /\b(?:sabtu|sab|saturday|sat|sa|hari\s*sabtu)\b/i,
   },
 ];
 
@@ -108,6 +117,13 @@ const IGNORE_CELL_WORDS = new Set([
   'FRI',
   'SUN',
   'SAT',
+  'MO',
+  'TU',
+  'WE',
+  'TH',
+  'FR',
+  'SA',
+  'SU',
   'ISN',
   'SEL',
   'RAB',
@@ -134,6 +150,9 @@ const IGNORE_CELL_WORDS = new Set([
   'GURU BERTUGAS',
   'BERTUGAS',
   'RELIEF',
+  'MESYUARAT PELAKSANA',
+  'MESYUARAT',
+  'PELAKSANA',
 ]);
 
 /**
@@ -274,7 +293,8 @@ export function matchDayName(text: string): string | null {
  */
 export function extractClassAndSubjectFromCellText(
   rawCellText: string,
-  fallbackClassFromHeader?: string
+  fallbackClassFromHeader?: string,
+  defaultSubjek = 'Kimia'
 ): {
   kelas: string;
   tingkatan: Tingkatan;
@@ -300,7 +320,7 @@ export function extractClassAndSubjectFromCellText(
   // Reject pure ignore words, recess, assembly, co-curricular, prayers, or pure timestamps
   if (
     IGNORE_CELL_WORDS.has(upperFull) ||
-    /\b(?:REHAT|RECESS|PERHIMPUNAN|HOMEROOM|BADAN\s*BERUNIFORM|SUKAN\s*PERMAINAN|ASSEMBLY|SOLAT\s*JUMAAT|SOLAT\s*ZOHOR|GURU\s*BERTUGAS|TIMBALAN\s*PENGETUA|PENGETUA)\b/i.test(
+    /\b(?:REHAT|RECESS|PERHIMPUNAN|HOMEROOM|BADAN\s*BERUNIFORM|KELAB\s*PERSATUAN|SUKAN\s*PERMAINAN|MESYUARAT\s*PELAKSANA|ASSEMBLY|SOLAT\s*JUMAAT|SOLAT\s*ZOHOR|GURU\s*BERTUGAS|TIMBALAN\s*PENGETUA|PENGETUA)\b/i.test(
       upperFull
     )
   ) {
@@ -310,10 +330,7 @@ export function extractClassAndSubjectFromCellText(
   if (parseTimeToken(fullText, true)) return null;
   if (/^\d{1,2}$/.test(fullText)) return null;
 
-  // Normalize sans-serif OCR confusions:
-  // - In Arial/sans-serif (aSc Timetables), capital 'I' after form digit [1-5] looks like '1' or 'l'
-  //   e.g. "417"/"41T" -> "4 IT", "517"/"51T" -> "5 IT", "518"/"515" -> "5 IS", "510"/"210"/"310" -> "5 IQ"/"2 IQ"/"3 IQ",
-  //   "51B" -> "5 IB", "21Q" -> "2 IQ", "31S" -> "3 IS", "31K" -> "3 IK", "31Q" -> "3 IQ"
+  // Normalize sans-serif OCR confusions & wrapped 3-digit class codes:
   const normalizedLines = lines.map((line) =>
     line
       .replace(/\bSa[l1I]ns\b/gi, 'Sains')
@@ -331,12 +348,21 @@ export function extractClassAndSubjectFromCellText(
       .replace(/\s*\/\s*/g, '/')
   );
 
-  const normalizedFull = normalizedLines.join(' ');
+  // Rejoin wrapped 3-digit numeric class codes like "501/503/50 5" -> "501/503/505"
+  const normalizedFull = normalizedLines
+    .join(' ')
+    .replace(/(\/[1-5]\d)\s+(\d)\b/g, '$1$2');
 
   // Detect Subject
-  let subjek = 'Kimia';
-  if (/\b(?:AMALI|MAKMAL|LAB|EKSPERIMEN)\b/i.test(normalizedFull)) {
-    subjek = 'Kimia (Amali)';
+  let subjek = defaultSubjek;
+  if (/\b(?:MATEMATIK\s*TAMBAHAN|ADDITIONAL\s*MATHEMATICS|ADD\s*MATHS?|3472)\b/i.test(normalizedFull)) {
+    subjek = 'Matematik Tambahan';
+  } else if (/\b(?:MATEMATIK|MATHEMATICS|MATHS?|1449)\b/i.test(normalizedFull)) {
+    subjek = 'Matematik';
+  } else if (/\b(?:SAINS\s*KOMPUTER)\b/i.test(normalizedFull)) {
+    subjek = 'Sains Komputer';
+  } else if (/\b(?:AMALI|MAKMAL|LAB|EKSPERIMEN)\b/i.test(normalizedFull) && !/\bLAB\s*COMP\b/i.test(normalizedFull)) {
+    subjek = `${defaultSubjek} (Amali)`;
   } else if (/\b(?:CHEMISTRY|CHEM)\b/i.test(normalizedFull)) {
     subjek = 'Chemistry';
   } else if (/\b(?:KIMIA|KIM|4541|P\.?\s*KIMIA)\b/i.test(normalizedFull)) {
@@ -352,16 +378,18 @@ export function extractClassAndSubjectFromCellText(
     subjek = 'Sains';
   }
 
-  // Strip out room codes ("MK 3", "MAKMAL KIMIA 1", "BILIK 2") and subject keywords to isolate the class name(s)
+  // Strip out room codes ("MK 3", "MF 3", "MB 1", "LAB COMP 1") and subject keywords to isolate the class name(s)
   const strippedForClass = normalizedFull
     .replace(
-      /\b(?:MAKMAL\s*KIMIA\s*\d*|MAKMAL\s*SAINS\s*\d*|MAKMAL\s*\d*|BILIK\s*[A-Z0-9]*|LAB\s*\d*|MK\s*\d+|MS\s*\d+)\b/gi,
+      /\b(?:MAKMAL\s*KIMIA\s*\d*|MAKMAL\s*SAINS\s*\d*|MAKMAL\s*\d*|LAB\s*COMP\s*\d*|BILIK\s*[A-Z0-9]*|LAB\s*\d*|MK\s*\d+|MF\s*\d+|MB\s*\d+|MS\s*\d+)\b/gi,
       ' '
     )
     .replace(
-      /\b(?:KIMIA|CHEMISTRY|CHEM|KIM|4541|AMALI|FIZIK|PHYSICS|BIOLOGI|BIOLOGY|MATEMATIK|TAMBAHAN|SEJARAH)\b/gi,
+      /\b(?:KIMIA|CHEMISTRY|CHEM|KIM|4541|AMALI|FIZIK|FIZ|PHYSICS|4531|BIOLOGI|BIO|BIOLOGY|4551|MATEMATIK\s*TAMBAHAN|MATEMATIK|MATHEMATICS|MATHS?|TAMBAHAN|SAINS\s*KOMPUTER|SEJARAH)\b/gi,
       ' '
     )
+    // Strip trailing MRSM footer duplicate class code like "4-IN", "5-IQ", "2-IQ" when preceded by another class token
+    .replace(/\s+[1-5]-[A-Z]{2,3}\b/g, ' ')
     .replace(/([1-5])([A-Za-z]{2,4})\b/g, '$1 $2')
     .replace(/\s+/g, ' ')
     .trim();
@@ -374,6 +402,19 @@ export function extractClassAndSubjectFromCellText(
     if (clean === '5') return 'Tingkatan 5';
     return 'Tingkatan 4';
   };
+
+  // Pattern A0: Combined 3-digit numeric classes (e.g. "501/503/505", "502/504/506")
+  const multiNumericMatch = strippedForClass.match(
+    /\b([1-5]\d{2}(?:\/[1-5]\d{2})+)\b/
+  );
+  if (multiNumericMatch) {
+    const joined = multiNumericMatch[1];
+    return {
+      kelas: joined,
+      tingkatan: digitToTingkatan(joined[0]),
+      subjek,
+    };
+  }
 
   // Pattern A: Multi-class combined blocks (e.g. "5 IB/5 IK/5 IN", "5 IQ/5 IS/5 IT", "5 IB/5 IK 5 IN", "4S1/4S2")
   const multiShortMatches = strippedForClass.match(
@@ -532,7 +573,8 @@ export function mergeAndSortTimetableSlots(
 async function extractSlotsFromGridImageData(
   imageData: ImageData,
   onProgress?: (status: string) => void,
-  defaultKelas = '4 Sains 1'
+  defaultKelas = '4 Sains 1',
+  defaultSubjek = 'Kimia'
 ): Promise<Omit<SlotJadualWaktu, 'id'>[] | null> {
   const { width, height, data: rgba } = imageData;
   if (width < 250 || height < 180) return null;
@@ -793,7 +835,7 @@ async function extractSlotsFromGridImageData(
   //    - Row 0 Day cell crop (vLines[0].x .. vLines[1].x, gridHLines[1].y .. gridHLines[2].y) to detect Isnin vs Ahad
   //    - One horizontal strip per candidate cell, filtered with our 75th-percentile local max(R,G,B) filter
   const headerStripH = gridHLines[1].y - gridHLines[0].y;
-  const slotH = 90;
+  const slotH = 110;
   const compW = width;
   const compH = headerStripH + 20 + cells.length * slotH;
 
@@ -847,15 +889,15 @@ async function extractSlotsFromGridImageData(
     }
   }
 
-  // 3B. Copy each candidate cell's middle class-name band (22%..76% height) using 75th-percentile local max(R,G,B)
+  // 3B. Copy each candidate cell's content band (5%..95% height) so top/bottom subject names and class codes are never clipped
   cells.forEach((cell, idx) => {
     const cellW = cell.x1 - cell.x0;
     const cellH = cell.y1 - cell.y0;
-    const padX = 6;
-    const startY = Math.round(cellH * 0.22);
-    const endY = Math.round(cellH * 0.76);
+    const padX = 5;
+    const startY = Math.max(4, Math.round(cellH * 0.05));
+    const endY = Math.min(cellH - 4, Math.round(cellH * 0.95));
     const cw = Math.max(10, Math.min(compW - 80, cellW - padX * 2));
-    const ch = Math.max(10, Math.min(slotH - 16, endY - startY));
+    const ch = Math.max(10, Math.min(slotH - 12, endY - startY));
 
     const offsetX = 40;
     const offsetY = headerStripH + 20 + idx * slotH + 10;
@@ -1035,7 +1077,8 @@ async function extractSlotsFromGridImageData(
       const rawText = cellWords.map((w) => w.text).join(' ');
       const extracted = extractClassAndSubjectFromCellText(
         rawText,
-        defaultKelas
+        defaultKelas,
+        defaultSubjek
       );
       if (!extracted) return;
 
@@ -1075,7 +1118,8 @@ async function extractSlotsFromGridImageData(
  */
 export function parseSpatialTimetableWords(
   words: SpatialWord[],
-  defaultKelas = '4 Sains 1'
+  defaultKelas = '4 Sains 1',
+  defaultSubjek = 'Kimia'
 ): Omit<SlotJadualWaktu, 'id'>[] {
   if (!words || words.length === 0) return [];
 
@@ -1397,7 +1441,7 @@ export function parseSpatialTimetableWords(
 
     for (const cl of clusters) {
       const text = cl.words.map((w) => w.text).join(' ');
-      const extracted = extractClassAndSubjectFromCellText(text, defaultKelas);
+      const extracted = extractClassAndSubjectFromCellText(text, defaultKelas, defaultSubjek);
       if (!extracted) continue;
 
       const overlapping = periodColumns.filter((p) => {
@@ -1434,13 +1478,16 @@ export function parseSpatialTimetableWords(
 }
 
 /**
- * Extracts spatial words `{ text, x0, y0, x1, y1 }` and rendered canvas from a PDF file using `pdfjs-dist`.
+ * Extracts spatial words `{ text, x0, y0, x1, y1 }` and multi-page/multi-section timetables from a PDF file using `pdfjs-dist`.
  */
 async function extractSpatialWordsFromPdf(
   file: File,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  defaultKelas = '4 Sains 1',
+  defaultSubjek = 'Kimia'
 ): Promise<{
   words: SpatialWord[];
+  sections: TimetableSection[];
   isScannedImagePdf: boolean;
   canvasDataUrl?: string;
   canvasImageData?: ImageData | null;
@@ -1453,17 +1500,21 @@ async function extractSpatialWordsFromPdf(
   const pdf = await loadingTask.promise;
 
   const allWords: SpatialWord[] = [];
+  const allSections: TimetableSection[] = [];
   let firstPageDataUrl: string | undefined;
   let firstPageImageData: ImageData | null = null;
 
-  const maxPages = Math.min(pdf.numPages, 2);
-  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+  const totalPages = pdf.numPages;
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    if (totalPages > 1) {
+      onProgress?.(`Membaca jadual halaman ${pageNum}/${totalPages}...`);
+    }
     const page = await pdf.getPage(pageNum);
     const scale = 2.0;
     const viewport = page.getViewport({ scale });
     const textContent = await page.getTextContent();
 
-    const pageOffsetY = (pageNum - 1) * viewport.height;
+    const pageWords: SpatialWord[] = [];
     for (const item of textContent.items as any[]) {
       const str = String(item.str || '').trim();
       if (!str) continue;
@@ -1474,13 +1525,121 @@ async function extractSpatialWordsFromPdf(
       const width = item.width ? item.width * scale : str.length * 10;
       const height = item.height ? item.height * scale : 18;
 
-      allWords.push({
+      const wordObj: SpatialWord = {
         text: str,
         x0: tx,
-        y0: pageOffsetY + ty - height,
+        y0: ty - height,
         x1: tx + Math.max(8, width),
-        y1: pageOffsetY + ty,
-      });
+        y1: ty,
+      };
+      pageWords.push(wordObj);
+
+      if (pageNum <= 2) {
+        const pageOffsetY = (pageNum - 1) * viewport.height;
+        allWords.push({
+          ...wordObj,
+          y0: pageOffsetY + wordObj.y0,
+          y1: pageOffsetY + wordObj.y1,
+        });
+      }
+    }
+
+    // Detect multiple vertical timetable sections on the same page (e.g., Week A top + Week B bottom)
+    if (pageWords.length >= 8) {
+      const primaryDayAnchors = pageWords
+        .filter((w) => {
+          const d = matchDayName(w.text);
+          return d === 'Isnin' || d === 'Ahad';
+        })
+        .sort((a, b) => a.y0 - b.y0);
+
+      // Group anchors that are vertically close into distinct table starts
+      const tableAnchorYs: number[] = [];
+      for (const a of primaryDayAnchors) {
+        if (
+          tableAnchorYs.length === 0 ||
+          a.y0 - tableAnchorYs[tableAnchorYs.length - 1] > viewport.height * 0.2
+        ) {
+          tableAnchorYs.push(a.y0);
+        }
+      }
+
+      const splitBoundaries: number[] = [0];
+      for (let i = 1; i < tableAnchorYs.length; i++) {
+        // Header + time strip sits ~200px (at scale 2.0) above the first day row
+        const approxHeaderStart = Math.max(
+          tableAnchorYs[i - 1] + 60,
+          tableAnchorYs[i] - viewport.height * 0.16
+        );
+        // Prefer splitting right above a "JADUAL WAKTU" or "WEEK" header if present
+        const headerMarker = pageWords.find(
+          (w) =>
+            w.y0 > tableAnchorYs[i - 1] + 80 &&
+            w.y0 < tableAnchorYs[i] - 30 &&
+            /\b(?:JADUAL\s*WAKTU|WEEK\s*[AB]|ALPHA|BETA)\b/i.test(w.text)
+        );
+        splitBoundaries.push(
+          headerMarker ? headerMarker.y0 - 10 : approxHeaderStart
+        );
+      }
+      splitBoundaries.push(viewport.height + 100);
+
+      for (let sIdx = 0; sIdx < splitBoundaries.length - 1; sIdx++) {
+        const yStart = splitBoundaries[sIdx];
+        const yEnd = splitBoundaries[sIdx + 1];
+        const sectionWords = pageWords.filter(
+          (w) => w.y0 >= yStart && w.y1 <= yEnd
+        );
+        if (sectionWords.length < 8) continue;
+
+        const sectionSlots = parseSpatialTimetableWords(
+          sectionWords,
+          defaultKelas,
+          defaultSubjek
+        );
+        if (sectionSlots.length === 0) continue;
+
+        // Extract clean section label (e.g. Teacher Name + WEEK A/B)
+        const firstDayY =
+          tableAnchorYs[sIdx] !== undefined ? tableAnchorYs[sIdx] : yStart + 150;
+        const headerLines = sectionWords
+          .filter((w) => w.y0 >= yStart && w.y0 < firstDayY - 15)
+          .sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
+
+        const weekWord = headerLines.find((w) =>
+          /\b(?:WEEK\s*[AB]|MINGGU\s*[AB12]|ALPHA|BETA)\b/i.test(w.text)
+        );
+        const nameCandidate = headerLines.find(
+          (w) =>
+            w.text.length >= 6 &&
+            !/\b(?:JADUAL\s*WAKTU|BERKUATKUASA|MRSM|SMK|SEKOLAH|aSc\s*Timetables|REHAT|MASA|WAKTU)\b/i.test(
+              w.text
+            ) &&
+            !/^\d{1,2}[:.]\d{2}/.test(w.text) &&
+            !/^\d{1,2}$/.test(w.text)
+        );
+
+        let label = '';
+        if (nameCandidate && weekWord && nameCandidate !== weekWord) {
+          label = `${nameCandidate.text} (${weekWord.text})`;
+        } else if (nameCandidate) {
+          label = nameCandidate.text;
+        } else if (weekWord) {
+          label = `Halaman ${pageNum} - ${weekWord.text}`;
+        } else {
+          label =
+            splitBoundaries.length > 2
+              ? `Halaman ${pageNum} (Jadual ${sIdx + 1})`
+              : `Halaman ${pageNum}`;
+        }
+
+        allSections.push({
+          id: `p${pageNum}_s${sIdx}`,
+          label: label.replace(/\s+/g, ' ').trim(),
+          pageNum,
+          slots: sectionSlots,
+        });
+      }
     }
 
     if (pageNum === 1) {
@@ -1510,6 +1669,7 @@ async function extractSpatialWordsFromPdf(
 
   return {
     words: allWords,
+    sections: allSections,
     isScannedImagePdf: allWords.length < 8,
     canvasDataUrl: firstPageDataUrl,
     canvasImageData: firstPageImageData,
@@ -1683,7 +1843,9 @@ export async function analyzeTimetableFileClientSide(
   file: File,
   imageDataUrl: string,
   onProgress?: (status: string) => void,
-  defaultKelas = '4 Sains 1'
+  defaultKelas = '4 Sains 1',
+  defaultSubjek = 'Kimia',
+  teacherName = ''
 ): Promise<TimetableParseResult> {
   const lowerName = file.name.toLowerCase();
   const isPdf =
@@ -1705,15 +1867,56 @@ export async function analyzeTimetableFileClientSide(
 
   if (isPdf) {
     try {
-      const { words, isScannedImagePdf, canvasDataUrl, canvasImageData } =
-        await extractSpatialWordsFromPdf(file, onProgress);
+      const { words, sections, isScannedImagePdf, canvasDataUrl, canvasImageData } =
+        await extractSpatialWordsFromPdf(
+          file,
+          onProgress,
+          defaultKelas,
+          defaultSubjek
+        );
 
-      // 1. Try precision Grid-Cell detector on the rendered PDF page canvas first
+      // 1. Primary path for text-based PDFs (100% exact vector text, supports multi-page & Week A/B!)
+      if (!isScannedImagePdf && sections.length > 0) {
+        let selected = sections[0];
+        if (teacherName && teacherName.trim().length >= 3) {
+          const tokens = teacherName
+            .toUpperCase()
+            .split(/\s+/)
+            .filter((t) => t.length >= 4 && !['CIKGU', 'USTAZ', 'USTAZAH', 'BIN', 'BINTI', 'MOHD', 'MUHAMMAD', 'MUHAMAD'].includes(t));
+          const matched = sections.find((sec) => {
+            const upperLabel = sec.label.toUpperCase();
+            return tokens.some((tok) => upperLabel.includes(tok));
+          });
+          if (matched) selected = matched;
+        }
+        return {
+          slots: selected.slots,
+          sections,
+          selectedSectionId: selected.id,
+          previewDataUrl: canvasDataUrl,
+          method: 'pdf-spatial-sections',
+        };
+      }
+
+      // 2. Fallback to embedded PDF spatial text coordinates across combined words
+      if (!isScannedImagePdf && words.length > 0) {
+        const slots = parseSpatialTimetableWords(words, defaultKelas, defaultSubjek);
+        if (slots.length > 0) {
+          return {
+            slots,
+            previewDataUrl: canvasDataUrl,
+            method: 'pdf-spatial',
+          };
+        }
+      }
+
+      // 3. Fallback for scanned image PDFs: Grid-Cell detector on rendered PDF page canvas
       if (canvasImageData) {
         const gridSlots = await extractSlotsFromGridImageData(
           canvasImageData,
           onProgress,
-          defaultKelas
+          defaultKelas,
+          defaultSubjek
         );
         if (gridSlots && gridSlots.length > 0) {
           return {
@@ -1724,25 +1927,13 @@ export async function analyzeTimetableFileClientSide(
         }
       }
 
-      // 2. Fallback to embedded PDF spatial text coordinates
-      if (!isScannedImagePdf && words.length > 0) {
-        const slots = parseSpatialTimetableWords(words, defaultKelas);
-        if (slots.length > 0) {
-          return {
-            slots,
-            previewDataUrl: canvasDataUrl,
-            method: 'pdf-spatial',
-          };
-        }
-      }
-
-      // 3. Fallback to full-page OCR on rendered PDF canvas
+      // 4. Final fallback: full-page OCR on rendered PDF canvas
       if (canvasDataUrl) {
         const ocrWords = await extractSpatialWordsFromImageOcr(
           canvasDataUrl,
           onProgress
         );
-        const slots = parseSpatialTimetableWords(ocrWords, defaultKelas);
+        const slots = parseSpatialTimetableWords(ocrWords, defaultKelas, defaultSubjek);
         return {
           slots,
           previewDataUrl: canvasDataUrl,
@@ -1768,7 +1959,8 @@ export async function analyzeTimetableFileClientSide(
     const gridSlots = await extractSlotsFromGridImageData(
       imageData,
       onProgress,
-      defaultKelas
+      defaultKelas,
+      defaultSubjek
     );
     if (gridSlots && gridSlots.length > 0) {
       return {
@@ -1784,7 +1976,7 @@ export async function analyzeTimetableFileClientSide(
     normalizedUrl,
     onProgress
   );
-  const slots = parseSpatialTimetableWords(ocrWords, defaultKelas);
+  const slots = parseSpatialTimetableWords(ocrWords, defaultKelas, defaultSubjek);
 
   return {
     slots,

@@ -15,7 +15,7 @@ import {
   muatSlotJadualWaktu,
   simpanSlotJadualWaktu,
 } from '../utils/rphStorage';
-import { analyzeTimetableFileClientSide } from '../utils/timetableParser';
+import { analyzeTimetableFileClientSide, TimetableSection } from '../utils/timetableParser';
 import { auth, kemasKiniSekolahPengguna } from '../services/firebase';
 import {
   Calendar,
@@ -92,6 +92,8 @@ export const Step1Info: React.FC<Step1InfoProps> = ({
     null
   );
   const [showSlotEditor, setShowSlotEditor] = useState(false);
+  const [pdfSections, setPdfSections] = useState<TimetableSection[]>([]);
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [timetableNotice, setTimetableNotice] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -234,11 +236,21 @@ export const Step1Info: React.FC<Step1InfoProps> = ({
         file,
         dataUrl,
         (status) => setExtractionStatus(status),
-        info.kelas
+        info.kelas,
+        subjek,
+        info.namaGuru
       );
 
       if (result.previewDataUrl) {
         setTimetablePreviewUrl(result.previewDataUrl);
+      }
+
+      if (result.sections && result.sections.length > 1) {
+        setPdfSections(result.sections);
+        setSelectedSectionId(result.selectedSectionId || result.sections[0].id);
+      } else {
+        setPdfSections([]);
+        setSelectedSectionId('');
       }
 
       if (result.slots.length > 0) {
@@ -263,9 +275,14 @@ export const Step1Info: React.FC<Step1InfoProps> = ({
           });
         }
 
+        const sectionMsg =
+          result.sections && result.sections.length > 1
+            ? ` (${result.sections.length} jadual guru/minggu ditemui dalam PDF — sila pilih jadual anda di bawah jika perlu)`
+            : '';
+
         setTimetableNotice({
           type: 'success',
-          text: `Berjaya mengekstrak ${extractedSlots.length} slot waktu kelas (kelas, masa, hari & tempoh waktu) daripada fail jadual anda! Klik mana-mana slot di bawah untuk menetapkan kelas & masa secara terus.`,
+          text: `Berjaya mengekstrak ${extractedSlots.length} slot waktu kelas daripada fail jadual anda${sectionMsg}! Klik mana-mana slot di bawah untuk menetapkan kelas & masa secara terus.`,
         });
       } else {
         setShowSlotEditor(true);
@@ -293,9 +310,7 @@ export const Step1Info: React.FC<Step1InfoProps> = ({
   ) => {
     if (
       !asExtraClass &&
-      (slot.tingkatan === 'Tingkatan 2' ||
-        slot.tingkatan === 'Tingkatan 3' ||
-        slot.subjek?.toLowerCase() === 'sains') &&
+      slot.subjek?.toLowerCase() === 'sains' &&
       subjek !== 'Sains'
     ) {
       onSubjekChange('Sains');
@@ -992,6 +1007,49 @@ export const Step1Info: React.FC<Step1InfoProps> = ({
               >
                 Tutup
               </button>
+            </div>
+          )}
+
+          {/* Multi-Teacher / Week A & B Selector for Master PDF */}
+          {pdfSections.length > 1 && (
+            <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                <CalendarRange className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Pilih Jadual Guru / Minggu daripada PDF ({pdfSections.length} jadual ditemui):</span>
+              </div>
+              <select
+                value={selectedSectionId}
+                onChange={(e) => {
+                  const secId = e.target.value;
+                  setSelectedSectionId(secId);
+                  const found = pdfSections.find((s) => s.id === secId);
+                  if (found) {
+                    const mappedSlots: SlotJadualWaktu[] = found.slots.map((s, idx) => ({
+                      id: `slot_${Date.now()}_${idx}`,
+                      ...s,
+                    }));
+                    setTimetableSlots(mappedSlots);
+                    simpanSlotJadualWaktu(mappedSlots);
+                    if (mappedSlots[0]) {
+                      handleBatchUpdate({
+                        tingkatan: mappedSlots[0].tingkatan,
+                        kelas: mappedSlots[0].kelas,
+                        hari: mappedSlots[0].hari,
+                        masaMula: mappedSlots[0].masaMula,
+                        masaTamat: mappedSlots[0].masaTamat,
+                        tempohMinit: mappedSlots[0].tempohMinit,
+                      });
+                    }
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg border border-indigo-300 bg-white text-indigo-950 font-bold text-xs max-w-full sm:max-w-xs"
+              >
+                {pdfSections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.label} ({sec.slots.length} slot)
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
