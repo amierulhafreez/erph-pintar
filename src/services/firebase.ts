@@ -282,6 +282,49 @@ export function muatLesenTempatan(subject?: string): LocalLicenseState | null {
   return null;
 }
 
+/**
+ * Isolate e-RPH storage: purge any legacy/foreign keys from Nota Kimia or Simulasi Kimia
+ * so e-RPH data and auth sessions stay 100% isolated inside e-RPH only.
+ */
+export function isolateErphStorage() {
+  if (typeof window === 'undefined') return;
+  const foreignPrefixes = ['nota_kimia', 'nota-kimia', 'notakimia', 'simulasi_', 'simulasikimia'];
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (!k) continue;
+        const lower = k.toLowerCase();
+        if (foreignPrefixes.some((prefix) => lower.startsWith(prefix) || lower.includes('nota_kimia'))) {
+          keysToRemove.push(k);
+        }
+        // Remove Firebase auth caches from any other Firebase API key
+        if (k.startsWith('firebase:authUser:') && !k.includes(firebaseConfig.apiKey)) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => storage.removeItem(k));
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
+
+isolateErphStorage();
+
+export function clearAllLocalLicenses() {
+  const subjects = ['kimia', 'biologi', 'fizik', 'sains', 'matematik', 'matematik-tambahan', 'all'];
+  try {
+    for (const s of subjects) {
+      localStorage.removeItem(getLocalLicenseKey(s));
+    }
+    localStorage.removeItem(LOCAL_LICENSE_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function simpanLesenTempatan(state: LocalLicenseState | null, subject?: string) {
   try {
     const key = getLocalLicenseKey(subject || state?.subject);
@@ -523,10 +566,15 @@ export async function loginDenganGoogle(): Promise<{
   const userRef = doc(db, 'users', user.uid);
   const nowIso = new Date().toISOString();
   const localProfil = muatProfilGuru();
-  const localLicense = muatLesenTempatan();
+  const rawLocalLicense = muatLesenTempatan();
+  // Never leak ADMIN-HAFREEZ or admin local license onto a non-admin Google account
   const isOwnerAdmin = ADMIN_EMAILS.some(
     (e) => e.toLowerCase() === user.email?.toLowerCase()
   );
+  const localLicense =
+    rawLocalLicense && (!rawLocalLicense.isAdmin || isOwnerAdmin)
+      ? rawLocalLicense
+      : null;
 
   try {
     const snap = await getDoc(userRef);
@@ -546,7 +594,7 @@ export async function loginDenganGoogle(): Promise<{
       const updatedProfile: UserProfileDoc = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || existing.displayName || 'Guru Kimia',
+        displayName: user.displayName || existing.displayName || 'Guru STEM',
         photoURL: user.photoURL || existing.photoURL || '',
         namaSekolah:
           existing.namaSekolah || localProfil.namaSekolah || 'SMK / MRSM',
@@ -566,7 +614,7 @@ export async function loginDenganGoogle(): Promise<{
       const newProfile: UserProfileDoc = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || localProfil.namaGuru || 'Guru Kimia',
+        displayName: user.displayName || localProfil.namaGuru || 'Guru STEM',
         photoURL: user.photoURL || '',
         namaSekolah: localProfil.namaSekolah || 'SMK / MRSM',
         role: isOwnerAdmin ? 'admin' : 'teacher',
@@ -607,7 +655,7 @@ export async function loginDenganGoogle(): Promise<{
 
 export async function logKeluar(): Promise<void> {
   cachedAccessToken = null;
-  simpanLesenTempatan(null);
+  clearAllLocalLicenses();
   simpanSesiPercubaanTempatan(false);
   await signOut(auth);
 }
