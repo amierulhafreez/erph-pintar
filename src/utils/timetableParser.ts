@@ -57,33 +57,33 @@ const DAY_ORDER: Record<string, number> = {
 const DAY_PATTERNS: { day: string; regex: RegExp }[] = [
   {
     day: 'Isnin',
-    regex: /\b(?:isnin|isn|monday|mon|mo|hari\s*isnin|1snin|isn1n|lSNIN)\b/i,
+    regex: /\b(?:isnin|isn|monday|mon|mo|hari\s*isnin|hari\s*1|day\s*1|1snin|isn1n|lsnin|isniin)\b/i,
   },
   {
     day: 'Selasa',
-    regex: /\b(?:selasa|sel|tuesday|tues|tue|tu|hari\s*selasa|5elasa)\b/i,
+    regex: /\b(?:selasa|sel|sl|tuesday|tues|tue|tu|hari\s*selasa|hari\s*2|day\s*2|5elasa|selas4|se1asa|selesa)\b/i,
   },
   {
     day: 'Rabu',
-    regex: /\b(?:rabu|rab|wednesday|wed|we|hari\s*rabu)\b/i,
+    regex: /\b(?:rabu|rab|rb|wednesday|weds|wed|we|hari\s*rabu|hari\s*3|day\s*3|r4bu|rab0)\b/i,
   },
   {
     day: 'Khamis',
     regex:
-      /\b(?:khamis|kha|khm|thursday|thurs|thur|thu|th|hari\s*khamis|kham1s)\b/i,
+      /\b(?:khamis|kha|khm|kh|km|thursday|thurs|thur|thu|th|hari\s*khamis|hari\s*4|day\s*4|kham1s|kh4mis|khamls)\b/i,
   },
   {
     day: 'Jumaat',
     regex:
-      /\b(?:jumaat|jum|jmt|friday|fri|fr|hari\s*jumaat|juma'at|jumat)\b/i,
+      /\b(?:jumaat|jum|jmt|jm|friday|fri|fr|hari\s*jumaat|hari\s*5|day\s*5|juma'at|jumat|juma4t)\b/i,
   },
   {
     day: 'Ahad',
-    regex: /\b(?:ahad|aha|ahd|sunday|sun|su|hari\s*ahad)\b/i,
+    regex: /\b(?:ahad|aha|ahd|ah|sunday|sun|su|hari\s*ahad|4had|ah4d)\b/i,
   },
   {
     day: 'Sabtu',
-    regex: /\b(?:sabtu|sab|saturday|sat|sa|hari\s*sabtu)\b/i,
+    regex: /\b(?:sabtu|sab|sb|saturday|sat|sa|hari\s*sabtu)\b/i,
   },
 ];
 
@@ -112,8 +112,12 @@ const IGNORE_CELL_WORDS = new Set([
   'SATURDAY',
   'MON',
   'TUE',
+  'TUES',
   'WED',
+  'WEDS',
   'THU',
+  'THUR',
+  'THURS',
   'FRI',
   'SUN',
   'SAT',
@@ -129,6 +133,13 @@ const IGNORE_CELL_WORDS = new Set([
   'RAB',
   'KHA',
   'JUM',
+  'SL',
+  'RB',
+  'KH',
+  'KM',
+  'JM',
+  'AH',
+  'SB',
   'MASA',
   'WAKTU',
   'HARI',
@@ -206,9 +217,9 @@ export function parseTimeToken(
 
   if (!cleaned) return null;
 
-  // 1. Range format: HH:MM-HH:MM or H.MM-H.MM
+  // 1. Range format: HH:MM-HH:MM or H.MM-H.MM (with optional am/pm/pg/ptg)
   const rangeMatch = cleaned.match(
-    /(\d{1,2})[:.](\d{2})-(?:to)?(\d{1,2})[:.](\d{2})/i
+    /(\d{1,2})[:.](\d{2})(?:am|pm|pg|ptg)?-(?:to)?(\d{1,2})[:.](\d{2})(?:am|pm|pg|ptg)?/i
   );
   if (rangeMatch) {
     const h1 = parseInt(rangeMatch[1], 10);
@@ -353,7 +364,11 @@ export function extractClassAndSubjectFromCellText(
     .join(' ')
     .replace(/(\/[1-5]\d)\s+(\d)\b/g, '$1$2');
 
-  // Detect Subject
+  // Detect Subject (detect base subject first, then append (Amali) if lab/amali)
+  const isAmali =
+    /\b(?:AMALI|MAKMAL|LAB|EKSPERIMEN)\b/i.test(normalizedFull) &&
+    !/\bLAB\s*COMP\b/i.test(normalizedFull);
+
   let subjek = defaultSubjek;
   if (/\b(?:MATEMATIK\s*TAMBAHAN|ADDITIONAL\s*MATHEMATICS|ADD\s*MATHS?|3472)\b/i.test(normalizedFull)) {
     subjek = 'Matematik Tambahan';
@@ -361,8 +376,6 @@ export function extractClassAndSubjectFromCellText(
     subjek = 'Matematik';
   } else if (/\b(?:SAINS\s*KOMPUTER)\b/i.test(normalizedFull)) {
     subjek = 'Sains Komputer';
-  } else if (/\b(?:AMALI|MAKMAL|LAB|EKSPERIMEN)\b/i.test(normalizedFull) && !/\bLAB\s*COMP\b/i.test(normalizedFull)) {
-    subjek = `${defaultSubjek} (Amali)`;
   } else if (/\b(?:CHEMISTRY|CHEM)\b/i.test(normalizedFull)) {
     subjek = 'Chemistry';
   } else if (/\b(?:KIMIA|KIM|4541|P\.?\s*KIMIA)\b/i.test(normalizedFull)) {
@@ -378,17 +391,26 @@ export function extractClassAndSubjectFromCellText(
     subjek = 'Sains';
   }
 
-  // Strip out room codes ("MK 3", "MF 3", "MB 1", "LAB COMP 1") and subject keywords to isolate the class name(s)
+  if (isAmali && !subjek.includes('Amali')) {
+    subjek = `${subjek} (Amali)`;
+  }
+
+  // Strip out room codes ("MK 3", "MF 3", "MB 1", "LAB COMP 1", "B.12", "BLOK A") and subject keywords to isolate the class name(s)
   const strippedForClass = normalizedFull
     .replace(
-      /\b(?:MAKMAL\s*KIMIA\s*\d*|MAKMAL\s*SAINS\s*\d*|MAKMAL\s*\d*|LAB\s*COMP\s*\d*|BILIK\s*[A-Z0-9]*|LAB\s*\d*|MK\s*\d+|MF\s*\d+|MB\s*\d+|MS\s*\d+)\b/gi,
+      /\b(?:MAKMAL\s*KIMIA\s*\d*|MAKMAL\s*SAINS\s*\d*|MAKMAL\s*FIZIK\s*\d*|MAKMAL\s*BIOLOGI\s*\d*|MAKMAL\s*KOMPUTER\s*\d*|MAKMAL\s*\d*|LAB\s*(?:COMP|CHEM|BIO|PHY|SAINS)?\s*\d*|BILIK\s*[A-Z0-9]*|BLOK\s*[A-Z0-9]+|DEWAN\s*[A-Z0-9]*|STUDIO\s*[A-Z0-9]*|MK\s*\d+|MF\s*\d+|MB\s*\d+|MS\s*\d+)\b/gi,
       ' '
     )
     .replace(
-      /\b(?:KIMIA|CHEMISTRY|CHEM|KIM|4541|AMALI|FIZIK|FIZ|PHYSICS|4531|BIOLOGI|BIO|BIOLOGY|4551|MATEMATIK\s*TAMBAHAN|MATEMATIK|MATHEMATICS|MATHS?|TAMBAHAN|SAINS\s*KOMPUTER|SEJARAH)\b/gi,
+      /\b(?:KIMIA|CHEMISTRY|CHEM|KIM|4541|AMALI|TEORI|FIZIK|FIZ|PHYSICS|4531|BIOLOGI|BIO|BIOLOGY|4551|MATEMATIK\s*TAMBAHAN|ADDITIONAL\s*MATHEMATICS|ADD\s*MATHS?|3472|MATEMATIK|MATHEMATICS|MATHS?|1449|TAMBAHAN|SAINS\s*KOMPUTER|SEJARAH|BAHASA\s*MELAYU|BAHASA\s*INGGERIS|ENGLISH|PENDIDIKAN\s*ISLAM|PENDIDIKAN\s*MORAL|GEOGRAFI|EKONOMI|PERNIAGAAN|PRINSIP\s*PERAKAUNAN)\b/gi,
       ' '
     )
-    // Strip trailing MRSM footer duplicate class code like "4-IN", "5-IQ", "2-IQ" when preceded by another class token
+    // Normalize Tingkatan / Form prefixes (e.g. "Tingkatan 4 Bestari" -> "4 Bestari", "T4S1" -> "4S1", "F5-A" -> "5-A")
+    .replace(/\b(?:TINGKATAN|TING\.?|FORM)\s*([1-5])\b/gi, '$1')
+    .replace(/\b[TF]([1-5])\s*[-/.]?\s*/gi, '$1 ')
+    // Normalize separators between combined classes ("401 & 402", "4A, 4B" -> "401/402", "4A/4B")
+    .replace(/([1-5][A-Za-z0-9\s]{1,12}?)\s*(?:&|,)\s*(?=[1-5]\s*[A-Za-z0-9])/g, '$1/')
+    // Strip trailing MRSM footer duplicate class code like "4-IN", "5-IQ", "2-IQ"
     .replace(/\s+[1-5]-[A-Z]{2,3}\b/g, ' ')
     .replace(/([1-5])([A-Za-z]{2,4})\b/g, '$1 $2')
     .replace(/\s+/g, ' ')
@@ -403,7 +425,7 @@ export function extractClassAndSubjectFromCellText(
     return 'Tingkatan 4';
   };
 
-  // Pattern A0: Combined 3-digit numeric classes (e.g. "501/503/505", "502/504/506")
+  // Pattern A0: Combined 3-digit numeric classes (e.g. "501/503/505", "502/504/506", "401/402")
   const multiNumericMatch = strippedForClass.match(
     /\b([1-5]\d{2}(?:\/[1-5]\d{2})+)\b/
   );
@@ -416,9 +438,9 @@ export function extractClassAndSubjectFromCellText(
     };
   }
 
-  // Pattern A: Multi-class combined blocks (e.g. "5 IB/5 IK/5 IN", "5 IQ/5 IS/5 IT", "5 IB/5 IK 5 IN", "4S1/4S2")
+  // Pattern A: Multi-class combined blocks (e.g. "5 IB/5 IK/5 IN", "5 IQ/5 IS/5 IT", "4S1/4S2", "4A/4B", "4 Bestari/4 Arif")
   const multiShortMatches = strippedForClass.match(
-    /\b[1-5]\s+(?:Sains\s*\d*|STEM\s*[A-Z0-9]*|DLP\s*\d*|[A-Z]{1,4}\d?)\b/gi
+    /\b[1-5]\s*(?:Sains\s*\d*|STEM\s*[A-Z0-9]*|DLP\s*\d*|Set\s*[A-Z0-9]+|Kump(?:ulan)?\s*[A-Z0-9]+|[A-Z]{1,10}\d?)\b/gi
   );
   if (multiShortMatches && multiShortMatches.length >= 2) {
     const cleanedCodes = multiShortMatches
@@ -437,9 +459,9 @@ export function extractClassAndSubjectFromCellText(
     }
   }
 
-  // Pattern B: Named Malaysian class stream (e.g. "4 Sains 1", "5 Al-Biruni", "4 Ibnu Sina", "5 UKM", "4 Bestari")
+  // Pattern B: Named Malaysian class stream (supports 1-2 word class names, hyphenated names, streams, university names, Set/Kump, KAA/PVMA)
   const namedClassRegex =
-    /\b(?:TINGKATAN\s*|TING\.?\s*|FORM\s*|T|F)?([1-5])\s*[-/.]?\s*(Sains(?:\s*Tulen)?(?:\s*\d+)?|STEM(?:\s*[A-Za-z0-9]+)?|DLP(?:\s*\d+)?|Al-[A-Za-z']+(?:\s*\d+)?|Ibnu\s+[A-Za-z']+(?:\s*\d+)?|UUM|UKM|USM|UPM|UTM|UIAM|UiTM|UNIMAS|UMS|UPSI|USIM|UMP|UTHM|UTeM|UniMAP|UMT|UMK|UPNM|UM|UA(?:\s*\d+)?|IGCSE(?:\s*\d+)?|PK(?:\s*\d+)?|[A-Za-z]{3,15}(?:\s*\d+)?)\b/i;
+    /\b([1-5])\s*[-/.]?\s*(Sains(?:\s*Tulen)?(?:\s*\d+)?|STEM(?:\s*[A-Za-z0-9]+)?|DLP(?:\s*\d+)?|Al-[A-Za-z']+(?:\s*\d+)?|Ibnu\s+[A-Za-z']+(?:\s+[A-Za-z']+)?(?:\s*\d+)?|Set\s*[A-Za-z0-9]+|Kump(?:ulan)?\s*[A-Za-z0-9]+|UUM|UKM|USM|UPM|UTM|UIAM|UiTM|UNIMAS|UMS|UPSI|USIM|UMP|UTHM|UTeM|UniMAP|UMT|UMK|UPNM|UM|UA(?:\s*\d+)?|IGCSE(?:\s*\d+)?|PK(?:\s*\d+)?|[A-Za-z]{2,15}(?:\s+[A-Za-z]{2,15})?(?:\s*\d+)?)\b/i;
 
   const namedMatch = strippedForClass.match(namedClassRegex);
   if (namedMatch) {
