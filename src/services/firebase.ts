@@ -221,6 +221,31 @@ export interface LocalLicenseState {
   subject?: string;
 }
 
+export function inferSubjectFromCode(
+  code: string,
+  note?: string,
+  explicitSubject?: string
+): string {
+  if (explicitSubject) return explicitSubject.toLowerCase();
+  const c = (code || '').trim().toUpperCase();
+  if (c.startsWith('ADDMATH')) return 'matematik-tambahan';
+  if (c.startsWith('MATH')) return 'matematik';
+  if (c.startsWith('BIO')) return 'biologi';
+  if (c.startsWith('FIZIK')) return 'fizik';
+  if (c.startsWith('SAINS')) return 'sains';
+  if (c.startsWith('KIMIA')) return 'kimia';
+
+  const n = (note || '').toUpperCase();
+  if (n.includes('MATEMATIK-TAMBAHAN') || n.includes('ADDMATH')) return 'matematik-tambahan';
+  if (n.includes('MATEMATIK') || n.includes('MATH')) return 'matematik';
+  if (n.includes('BIOLOGI') || n.includes('BIO')) return 'biologi';
+  if (n.includes('FIZIK')) return 'fizik';
+  if (n.includes('SAINS')) return 'sains';
+  if (n.includes('KIMIA')) return 'kimia';
+
+  return 'all';
+}
+
 export function getLocalLicenseKey(subject?: string): string {
   if (!subject || subject === 'kimia') return LOCAL_LICENSE_STORAGE_KEY;
   return `e_rph_${subject.toLowerCase()}_verified_license_v1`;
@@ -231,12 +256,24 @@ export function muatLesenTempatan(subject?: string): LocalLicenseState | null {
     const key = getLocalLicenseKey(subject);
     const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw) as LocalLicenseState;
+
+    // Check 'all' subjects license key
+    const allRaw = localStorage.getItem('e_rph_all_verified_license_v1');
+    if (allRaw) return JSON.parse(allRaw) as LocalLicenseState;
+
     // Fallback: check legacy general license
     if (subject && subject !== 'kimia') {
       const legRaw = localStorage.getItem(LOCAL_LICENSE_STORAGE_KEY);
       if (legRaw) {
         const leg = JSON.parse(legRaw) as LocalLicenseState;
-        if (leg.isAdmin) return leg;
+        if (leg.isAdmin || leg.subject === 'all') return leg;
+        if (subject === 'sains') return leg;
+      }
+      if (subject === 'sains') {
+        for (const s of ['biologi', 'fizik']) {
+          const sRaw = localStorage.getItem(getLocalLicenseKey(s));
+          if (sRaw) return JSON.parse(sRaw) as LocalLicenseState;
+        }
       }
     }
   } catch {
@@ -353,11 +390,29 @@ export function isUserFullLicensed(
     return false;
   }
 
-  // Check subject-specific license in Firestore profile
-  if (profile?.licensedSubjects?.[targetSubject]?.isActive) return true;
+  // Check profile active access codes (supports single or comma-separated codes without requiring extra Firestore schema fields)
+  if (profile?.accessStatus === 'active') {
+    const rawCodes = (profile.accessCodeUsed || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
 
-  // Legacy global license for kimia if accessStatus is active
-  if (targetSubject === 'kimia' && profile?.accessStatus === 'active') return true;
+    if (rawCodes.length === 0) {
+      // Legacy global Kimia/Sains license
+      if (targetSubject === 'kimia' || targetSubject === 'sains') return true;
+    } else {
+      for (const codeStr of rawCodes) {
+        const cSubj = inferSubjectFromCode(codeStr);
+        if (cSubj === 'all' || cSubj === targetSubject) return true;
+        if (targetSubject === 'sains' && ['kimia', 'biologi', 'fizik', 'sains'].includes(cSubj)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Check subject-specific license in Firestore profile (if present)
+  if (profile?.licensedSubjects?.[targetSubject]?.isActive) return true;
 
   // Local device license check
   if (localLicense && localLicense.code) {
@@ -618,17 +673,24 @@ export async function tebusKodAksesUnik(
     }
 
     // Determine target subject for the code
-    const codeSubject = (
-      codeData.subject ||
-      (codeData.code.startsWith('BIO') ? 'biologi' :
-       codeData.code.startsWith('KIMIA') ? 'kimia' :
-       codeData.code.startsWith('FIZIK') ? 'fizik' :
-       codeData.code.startsWith('SAINS') ? 'sains' : 'kimia')
-    ).toLowerCase();
+    const codeSubject = inferSubjectFromCode(
+      codeData.code,
+      codeData.note,
+      codeData.subject
+    );
 
     // Subject mismatch check if user is on a specific subject portal
     const activePortalSubjek = (currentSubject || '').toLowerCase();
-    if (activePortalSubjek && codeSubject !== 'all' && codeSubject !== activePortalSubjek) {
+    const isSainsSharedMatch =
+      activePortalSubjek === 'sains' &&
+      ['kimia', 'biologi', 'fizik', 'sains'].includes(codeSubject);
+
+    if (
+      activePortalSubjek &&
+      codeSubject !== 'all' &&
+      codeSubject !== activePortalSubjek &&
+      !isSainsSharedMatch
+    ) {
       return {
         success: false,
         message: `Kod akses ini adalah khusus untuk modul ${codeSubject.toUpperCase()}. Sila tebus di portal /${codeSubject}.`,
@@ -664,17 +726,16 @@ export async function tebusKodAksesUnik(
     const nowIso = new Date().toISOString();
     const localProfil = muatProfilGuru();
 
-    // Mark the code as active in Firestore
+    // Mark the code as active in Firestore (strictly using fields permitted by firestore.rules)
     if (codeData.status === 'unused') {
       const updatedCodeDoc: AccessCodeDoc = {
         code: codeData.code,
-        subject: codeSubject,
         status: 'active',
         note: codeData.note,
         redeemedByUid: user?.uid || 'local_device_user',
         redeemedByEmail: user?.email || 'pengguna@sekolah.edu.my',
         redeemedByName:
-          user?.displayName || localProfil.namaGuru || 'Guru Cemerlang',
+          (user?.displayName || localProfil.namaGuru || 'Guru Cemerlang').slice(0, 140),
         createdAt: codeData.createdAt,
         redeemedAt: nowIso,
       };
@@ -696,36 +757,42 @@ export async function tebusKodAksesUnik(
       let updatedProfile: UserProfileDoc;
       if (userSnap.exists()) {
         const existing = userSnap.data() as UserProfileDoc;
-        const licensedSubjects = existing.licensedSubjects || {};
-        licensedSubjects[codeSubject] = {
-          isActive: true,
-          codeUsed: normalizedCode,
-          activatedAt: nowIso,
-        };
+        const prevCodes = (existing.accessCodeUsed || '')
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean);
+        if (!prevCodes.includes(normalizedCode)) {
+          prevCodes.push(normalizedCode);
+        }
+        const combinedCodes = prevCodes.join(',');
+        const finalCodeUsed =
+          combinedCodes.length <= 60 ? combinedCodes : normalizedCode;
+
         updatedProfile = {
-          ...existing,
+          uid: existing.uid,
+          email: existing.email,
+          displayName: existing.displayName,
+          ...(existing.photoURL ? { photoURL: existing.photoURL } : {}),
+          ...(existing.namaSekolah ? { namaSekolah: existing.namaSekolah } : {}),
+          role: existing.role,
           accessStatus: 'active',
-          accessCodeUsed: normalizedCode,
-          licensedSubjects,
+          accessCodeUsed: finalCodeUsed,
+          loginCount: existing.loginCount || 1,
+          rphGeneratedCount: existing.rphGeneratedCount || 0,
+          lastLoginAt: existing.lastLoginAt || nowIso,
+          createdAt: existing.createdAt,
         };
       } else {
         updatedProfile = {
           uid: user.uid,
           email: user.email,
           displayName:
-            user.displayName || localProfil.namaGuru || 'Guru Cemerlang',
-          photoURL: user.photoURL || '',
-          namaSekolah: localProfil.namaSekolah || 'SMK / MRSM',
+            (user.displayName || localProfil.namaGuru || 'Guru Cemerlang').slice(0, 140),
+          ...(user.photoURL ? { photoURL: user.photoURL } : {}),
+          namaSekolah: (localProfil.namaSekolah || 'SMK / MRSM').slice(0, 190),
           role: 'teacher',
           accessStatus: 'active',
-          accessCodeUsed: normalizedCode,
-          licensedSubjects: {
-            [codeSubject]: {
-              isActive: true,
-              codeUsed: normalizedCode,
-              activatedAt: nowIso,
-            },
-          },
+          accessCodeUsed: normalizedCode.slice(0, 60),
           loginCount: 1,
           rphGeneratedCount: 0,
           lastLoginAt: nowIso,
@@ -781,7 +848,10 @@ export async function janaKodAksesAdmin(
                  targetSubj === 'matematik' ? 'MATH' :
                  targetSubj === 'matematik-tambahan' ? 'ADDMATH' : 'KIMIA';
 
-  const cleanNote = (note || `Lesen Individu e-RPH ${prefix}`).slice(0, 280);
+  const rawNote = (note || `Lesen Individu e-RPH ${prefix}`).trim();
+  // Ensure subject tag is present in note if custom code doesn't start with prefix
+  const hasPrefixInNote = rawNote.toUpperCase().includes(prefix) || rawNote.toUpperCase().includes(targetSubj.toUpperCase());
+  const cleanNote = (hasPrefixInNote ? rawNote : `[${prefix}] ${rawNote}`).slice(0, 280);
 
   for (let i = 0; i < count; i++) {
     let codeStr = '';
@@ -790,6 +860,9 @@ export async function janaKodAksesAdmin(
         .trim()
         .toUpperCase()
         .replace(/[^A-Z0-9_-]/g, '');
+      if (codeStr.length < 3) {
+        throw new Error('Kod khas mestilah sekurang-kurangnya 3 aksara.');
+      }
     } else {
       let rand = '';
       for (let j = 0; j < 6; j++) {
@@ -798,9 +871,9 @@ export async function janaKodAksesAdmin(
       codeStr = `${prefix}-${rand}`;
     }
 
+    // Strictly include only fields permitted by firestore.rules isValidAccessCode
     const payload: AccessCodeDoc = {
       code: codeStr,
-      subject: targetSubj,
       status: 'unused',
       note: cleanNote,
       createdAt: nowIso,
@@ -830,18 +903,19 @@ export async function tukarStatusKodAdmin(
 ): Promise<void> {
   const codePath = `access_codes/${codeDoc.code}`;
   try {
+    const { subject: _omitSubj, ...restCodeDoc } = codeDoc;
     const updatedCode: AccessCodeDoc = {
-      ...codeDoc,
+      ...restCodeDoc,
       status: newStatus,
     };
     await setDoc(doc(db, 'access_codes', codeDoc.code), updatedCode);
 
     // Also update the bound user's accessStatus if this code was redeemed by a user
-    if (codeDoc.redeemedByUid) {
+    if (codeDoc.redeemedByUid && codeDoc.redeemedByUid !== 'local_device_user') {
       const userRef = doc(db, 'users', codeDoc.redeemedByUid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        const uData = userSnap.data() as UserProfileDoc;
+        const { licensedSubjects: _omitLic, ...uData } = userSnap.data() as UserProfileDoc;
         await setDoc(userRef, {
           ...uData,
           accessStatus: newStatus === 'revoked' ? 'revoked' : 'active',

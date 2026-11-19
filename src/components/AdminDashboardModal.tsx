@@ -14,8 +14,10 @@ import {
   padamKodAksesAdmin,
   tukarStatusAksesPenggunaAdmin,
   resetKuotaPercubaanAdmin,
+  inferSubjectFromCode,
   FREE_TRIAL_LIMIT,
 } from '../services/firebase';
+import { getSubjectConfig } from '../config/subjects';
 import { RPHData } from '../types/rph';
 import { fetchVisitorStats, VisitorStats } from '../services/visitorTracker';
 import {
@@ -75,6 +77,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [customCodeInput, setCustomCodeInput] = useState('');
   const [batchCount, setBatchCount] = useState<number>(1);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [codeGenError, setCodeGenError] = useState<string | null>(null);
+  const [codeGenSuccess, setCodeGenSuccess] = useState<string | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
@@ -256,42 +260,79 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   if (!isOpen) return null;
 
+  const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Fallback below
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleGenerateCodes = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGeneratingCode(true);
+    setCodeGenError(null);
+    setCodeGenSuccess(null);
     try {
-      await janaKodAksesAdmin(
+      const created = await janaKodAksesAdmin(
         buyerNote.trim() || `Lesen Individu e-RPH ${targetSubject.toUpperCase()}`,
         batchCount,
         customCodeInput,
         targetSubject
       );
+      if (created.length > 0) {
+        setCodeGenSuccess(`Berjaya menjana ${created.length} kod akses: ${created.join(', ')}`);
+      }
       setBuyerNote('');
       setCustomCodeInput('');
+    } catch (err: any) {
+      console.error('Error generating access code:', err);
+      setCodeGenError(
+        err?.message || 'Gagal menjana kod akses. Sila pastikan anda log masuk sebagai Admin.'
+      );
     } finally {
       setIsGeneratingCode(false);
     }
   };
 
   const handleCopyCode = async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
+    const ok = await copyTextToClipboard(code);
+    if (ok) {
       setCopiedCodeId(code);
       setTimeout(() => setCopiedCodeId(null), 2000);
-    } catch (e) {
-      console.error('Failed to copy code', e);
     }
   };
 
   const handleCopyWhatsAppMsg = async (code: string, note: string) => {
-    const appUrl = window.location.origin;
-    const msg = `Assalamualaikum & Salam Sejahtera,\n\nTerima kasih atas langganan aplikasi *e-RPH Kimia KSSM Pintar (by Cikgu Hafreez)*.\n\nBerikut adalah maklumat pengaktifan akaun anda:\n🔗 Pautan Aplikasi: ${appUrl}\n🔑 Kod Akses Unik Anda: *${code}*\n📌 Catatan: ${note}\n\nCara Pengaktifan:\n1. Buka pautan di atas dan klik *"Log Masuk dengan Google"*.\n2. Masukkan Kod Akses Unik di atas sekali sahaja.\n3. Akaun anda akan diaktifkan serta-merta untuk semua ciri RPH Kimia T4 & T5.`;
-    try {
-      await navigator.clipboard.writeText(msg);
+    const subjKey = inferSubjectFromCode(code, note);
+    const subjCfg = subjKey !== 'all' ? getSubjectConfig(subjKey) : null;
+    const appOrigin = window.location.origin;
+    const appUrl = subjCfg ? `${appOrigin}/${subjCfg.key}` : appOrigin;
+    const appTitle = subjCfg ? `e-RPH ${subjCfg.name} Pintar (by Cikgu Hafreez)` : 'e-RPH Pintar STEM (by Cikgu Hafreez)';
+    const ciriLabel = subjCfg ? `semua ciri RPH ${subjCfg.shortName} (${subjCfg.formsLabel})` : 'semua ciri RPH STEM KSSM';
+
+    const msg = `Assalamualaikum & Salam Sejahtera,\n\nTerima kasih atas langganan aplikasi *${appTitle}*.\n\nBerikut adalah maklumat pengaktifan akaun anda:\n🔗 Pautan Aplikasi: ${appUrl}\n🔑 Kod Akses Unik Anda: *${code}*\n📌 Catatan: ${note}\n\nCara Pengaktifan:\n1. Buka pautan di atas dan klik *"Log Masuk dengan Google"*.\n2. Masukkan Kod Akses Unik di atas sekali sahaja.\n3. Akaun anda akan diaktifkan serta-merta untuk ${ciriLabel}.`;
+    const ok = await copyTextToClipboard(msg);
+    if (ok) {
       setCopiedMsgId(code);
       setTimeout(() => setCopiedMsgId(null), 2500);
-    } catch (e) {
-      console.error('Failed to copy message', e);
     }
   };
 
@@ -602,14 +643,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         setCustomCodeInput(e.target.value.toUpperCase())
                       }
                       disabled={batchCount > 1}
-                      placeholder="Auto (KIMIA-XXXXXX)"
+                      placeholder={`Auto (${getSubjectConfig(targetSubject).codePrefix}-XXXXXX)`}
                       className="w-full px-3 py-2 text-xs font-mono uppercase rounded-xl border border-slate-300 bg-white disabled:bg-slate-100 focus:outline-hidden focus:border-emerald-600"
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-1">
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Kuantiti Kod
+                      Kuantiti
                     </label>
                     <select
                       value={batchCount}
@@ -618,11 +659,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         setBatchCount(val);
                         if (val > 1) setCustomCodeInput('');
                       }}
-                      className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 bg-white"
+                      className="w-full px-2.5 py-2 text-xs font-bold rounded-xl border border-slate-300 bg-white"
                     >
-                      <option value={1}>1 Kod Unik</option>
-                      <option value={5}>5 Kod Pukal</option>
-                      <option value={10}>10 Kod Pukal</option>
+                      <option value={1}>1 Kod</option>
+                      <option value={5}>5 Kod</option>
+                      <option value={10}>10 Kod</option>
                     </select>
                   </div>
 
@@ -639,6 +680,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {codeGenError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+                    {codeGenError}
+                  </div>
+                )}
+
+                {codeGenSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{codeGenSuccess}</span>
+                  </div>
+                )}
               </form>
 
               {/* Access Codes Table */}
@@ -669,10 +723,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       filteredCodes.map((c) => (
                         <tr key={c.code} className="hover:bg-slate-50/80">
                           <td className="p-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono tabular-nums font-extrabold text-sm text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                                 {c.code}
                               </span>
+                              {(() => {
+                                const sKey = inferSubjectFromCode(c.code, c.note, c.subject);
+                                const label = sKey === 'all' ? 'Semua Subjek' : getSubjectConfig(sKey).shortName;
+                                return (
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                                    {label}
+                                  </span>
+                                );
+                              })()}
                               <button
                                 type="button"
                                 onClick={() => handleCopyCode(c.code)}

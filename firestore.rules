@@ -61,6 +61,7 @@ service cloud.firestore {
           'role',
           'accessStatus',
           'accessCodeUsed',
+          'licensedSubjects',
           'loginCount',
           'rphGeneratedCount',
           'lastLoginAt',
@@ -89,6 +90,7 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'code',
+          'subject',
           'status',
           'note',
           'redeemedByUid',
