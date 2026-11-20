@@ -4,7 +4,11 @@ import {
   getTingkatanListBySubjek,
 } from '../data/dskpKimia';
 import { Tingkatan, RPHData, BahasaRPH, SubjekRPH } from '../types/rph';
-import { binaRPHDariMultiSp } from '../utils/rphStorage';
+import {
+  binaRPHDariMultiSp,
+  muatProfilGuru,
+  muatSlotJadualWaktu,
+} from '../utils/rphStorage';
 import {
   Zap,
   X,
@@ -17,7 +21,19 @@ import {
   ArrowRight,
   CheckSquare,
   Square,
+  GraduationCap,
+  Sparkles,
 } from 'lucide-react';
+
+const getFormDigit = (t: Tingkatan): string => {
+  const match = t.match(/\d+/);
+  return match ? match[0] : '4';
+};
+
+const getDefaultClassForTingkatan = (t: Tingkatan): string => {
+  const d = getFormDigit(t);
+  return `${d} Sains 1`;
+};
 
 interface QuickGeneratorModalProps {
   isOpen: boolean;
@@ -46,6 +62,9 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
   const [bahasa, setBahasa] = useState<BahasaRPH>(currentBahasa);
   const [isCompact, setIsCompact] = useState<boolean>(currentCompact);
   const [tingkatan, setTingkatan] = useState<Tingkatan>(currentInfo.tingkatan);
+  const [kelas, setKelas] = useState<string>(
+    currentInfo.kelas || getDefaultClassForTingkatan(currentInfo.tingkatan)
+  );
   const [kehadiranMurid, setKehadiranMurid] = useState<string>(
     currentInfo.kehadiranMurid || `${currentInfo.bilanganMurid || 30} / ${currentInfo.bilanganMurid || 30}`
   );
@@ -75,9 +94,160 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
         currentInfo.kehadiranMurid || `${currentInfo.bilanganMurid || 30} / ${currentInfo.bilanganMurid || 30}`
       );
       const validForms = getTingkatanListBySubjek(initialSubj);
-      setTingkatan(validForms.includes(currentInfo.tingkatan) ? currentInfo.tingkatan : validForms[0]);
+      const targetTingkatan = validForms.includes(currentInfo.tingkatan)
+        ? currentInfo.tingkatan
+        : validForms[0];
+      setTingkatan(targetTingkatan);
+      setKelas(currentInfo.kelas || getDefaultClassForTingkatan(targetTingkatan));
     }
-  }, [isOpen, portalSubject, currentSubjek, currentBahasa, currentCompact, currentInfo.tingkatan, currentInfo.kehadiranMurid, currentInfo.bilanganMurid]);
+  }, [
+    isOpen,
+    portalSubject,
+    currentSubjek,
+    currentBahasa,
+    currentCompact,
+    currentInfo.tingkatan,
+    currentInfo.kelas,
+    currentInfo.kehadiranMurid,
+    currentInfo.bilanganMurid,
+  ]);
+
+  const handleTingkatanChange = (newTingkatan: Tingkatan) => {
+    const oldDigit = getFormDigit(tingkatan);
+    const newDigit = getFormDigit(newTingkatan);
+    setTingkatan(newTingkatan);
+    setSelectedBabId('');
+    setSelectedSkKod('');
+    setSelectedSpKods([]);
+
+    // Transform class name if it starts with old digit
+    setKelas((prevKelas) => {
+      if (!prevKelas || prevKelas.trim() === '') {
+        return `${newDigit} Sains 1`;
+      }
+      const trimmed = prevKelas.trim();
+      if (trimmed.startsWith(oldDigit)) {
+        return trimmed.replace(new RegExp(`^${oldDigit}`), newDigit);
+      }
+      return trimmed;
+    });
+  };
+
+  const senaraiCadanganKelas = useMemo(() => {
+    const digit = getFormDigit(tingkatan);
+    const baseNames = [
+      'Sains 1',
+      'Sains 2',
+      'STEM 1',
+      'STEM 2',
+      'Ibnu Sina',
+      'Al-Biruni',
+      'Al-Khawarizmi',
+      'Arif',
+      'Bestari',
+      'Cemerlang',
+      'Dinamik',
+      '01',
+      '02',
+      '03',
+    ];
+
+    const presets = baseNames.map((name) =>
+      name.startsWith('0') ? `${digit}${name}` : `${digit} ${name}`
+    );
+
+    let timetableClasses: string[] = [];
+    try {
+      const slots = muatSlotJadualWaktu();
+      timetableClasses = slots
+        .filter((s) => s.tingkatan === tingkatan && s.kelas)
+        .map((s) => s.kelas.trim());
+      if (timetableClasses.length === 0) {
+        timetableClasses = slots
+          .map((s) => s.kelas.trim())
+          .filter((k) => k.startsWith(digit));
+      }
+    } catch {
+      // ignore
+    }
+
+    let favClasses: string[] = [];
+    try {
+      const profil = muatProfilGuru();
+      if (profil?.kelasKegemaran && Array.isArray(profil.kelasKegemaran)) {
+        favClasses = profil.kelasKegemaran
+          .filter((k) => typeof k === 'string' && k.startsWith(digit));
+      }
+    } catch {
+      // ignore
+    }
+
+    const extraCurrent =
+      currentInfo.kelas && currentInfo.tingkatan === tingkatan
+        ? [currentInfo.kelas.trim()]
+        : [];
+
+    return Array.from(
+      new Set(
+        [...timetableClasses, ...favClasses, ...extraCurrent, ...presets].filter(
+          (k) => k && k.length > 0
+        )
+      )
+    );
+  }, [tingkatan, currentInfo.kelas, currentInfo.tingkatan]);
+
+  const themeAccent = useMemo(() => {
+    switch (portalSubject) {
+      case 'biologi':
+        return {
+          activeBtn: 'bg-[#ab4f6c] text-white border-[#ab4f6c] shadow-xs',
+          pillActive: 'bg-[#ab4f6c] text-white border-[#ab4f6c] shadow-xs ring-1 ring-[#ab4f6c]/30',
+          badge: 'bg-[#ab4f6c]/10 text-[#ab4f6c] border-[#ab4f6c]/20',
+          ring: 'focus:ring-[#ab4f6c]/30 focus:border-[#ab4f6c]',
+          highlightText: 'text-[#ab4f6c]',
+        };
+      case 'fizik':
+        return {
+          activeBtn: 'bg-[#ab5e19] text-white border-[#ab5e19] shadow-xs',
+          pillActive: 'bg-[#ab5e19] text-white border-[#ab5e19] shadow-xs ring-1 ring-[#ab5e19]/30',
+          badge: 'bg-[#ab5e19]/10 text-[#ab5e19] border-[#ab5e19]/20',
+          ring: 'focus:ring-[#ab5e19]/30 focus:border-[#ab5e19]',
+          highlightText: 'text-[#ab5e19]',
+        };
+      case 'sains':
+        return {
+          activeBtn: 'bg-sky-600 text-white border-sky-600 shadow-xs',
+          pillActive: 'bg-sky-600 text-white border-sky-600 shadow-xs ring-1 ring-sky-500/30',
+          badge: 'bg-sky-50 text-sky-700 border-sky-200',
+          ring: 'focus:ring-sky-500/30 focus:border-sky-500',
+          highlightText: 'text-sky-700',
+        };
+      case 'matematik':
+        return {
+          activeBtn: 'bg-indigo-700 text-white border-indigo-700 shadow-xs',
+          pillActive: 'bg-indigo-700 text-white border-indigo-700 shadow-xs ring-1 ring-indigo-500/30',
+          badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+          ring: 'focus:ring-indigo-500/30 focus:border-indigo-500',
+          highlightText: 'text-indigo-700',
+        };
+      case 'matematik-tambahan':
+        return {
+          activeBtn: 'bg-slate-800 text-white border-slate-800 shadow-xs',
+          pillActive: 'bg-slate-800 text-white border-slate-800 shadow-xs ring-1 ring-slate-700/30',
+          badge: 'bg-slate-100 text-slate-800 border-slate-300',
+          ring: 'focus:ring-slate-500/30 focus:border-slate-700',
+          highlightText: 'text-slate-800',
+        };
+      default: // kimia
+        return {
+          activeBtn: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
+          pillActive: 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-1 ring-emerald-500/30',
+          badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          ring: 'focus:ring-emerald-500/30 focus:border-emerald-500',
+          highlightText: 'text-emerald-700',
+        };
+    }
+  }, [portalSubject]);
 
   const tingkatanOptions = useMemo(
     () => getTingkatanListBySubjek(subjek),
@@ -145,6 +315,7 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
         ? parseInt(parts[1].trim(), 10) || currentInfo.bilanganMurid || 30
         : parseInt(kehadiranMurid.trim(), 10) || currentInfo.bilanganMurid || 30;
     const finalKeh = kehadiranMurid.trim() || `${bil} / ${bil}`;
+    const finalKelas = kelas.trim() || getDefaultClassForTingkatan(tingkatan);
 
     const readyRph = binaRPHDariMultiSp(
       activeBab,
@@ -154,6 +325,7 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
         ...currentInfo,
         subjek,
         tingkatan,
+        kelas: finalKelas,
         kehadiranMurid: finalKeh,
         bilanganMurid: bil,
       },
@@ -428,38 +600,116 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
           </div>
         </div>
 
-        {/* 1. Tingkatan selector */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700">
-            1. Pilih Tingkatan ({subjek} KSSM {tingkatanOptions.length === 4 ? 'T2–T5' : 'T4–T5'})
-          </label>
-          <div className={`grid gap-2 ${tingkatanOptions.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
-            {tingkatanOptions.map((t) => (
-              <button
-                type="button"
-                key={t}
-                onClick={() => {
-                  setTingkatan(t);
-                  setSelectedBabId('');
-                  setSelectedSkKod('');
-                  setSelectedSpKods([]);
-                }}
-                className={`py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  tingkatan === t
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+        {/* 1. Tingkatan & 2. Kelas */}
+        <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
+          {/* 1. Pilih Tingkatan */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold">1</span>
+                <span>Pilih Tingkatan ({subjek} KSSM {tingkatanOptions.length === 4 ? 'T2–T5' : 'T4–T5'})</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Pilih tingkatan untuk silibus &amp; cadangan kelas
+              </span>
+            </div>
+            <div className={`grid gap-2 ${tingkatanOptions.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
+              {tingkatanOptions.map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => handleTingkatanChange(t)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    tingkatan === t
+                      ? themeAccent.activeBtn
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>{t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Pilih atau Tuliskan Kelas */}
+          <div className="space-y-2 pt-2.5 border-t border-slate-200/60">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold">2</span>
+                <span>Pilih atau Tuliskan Kelas</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Boleh klik butang pilihan di bawah atau taip sendiri nama kelas
+              </span>
+            </div>
+
+            {/* Input Nama Kelas */}
+            <div className="relative">
+              <input
+                type="text"
+                list="quick-gen-senarai-kelas"
+                value={kelas}
+                onChange={(e) => setKelas(e.target.value)}
+                placeholder={`cth: ${getFormDigit(tingkatan)} Sains 1 / ${getFormDigit(tingkatan)} STEM 1 / ${getFormDigit(tingkatan)}01`}
+                className={`w-full pl-9 pr-28 py-2 text-xs rounded-xl border border-slate-200 bg-white font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-hidden ${themeAccent.ring} shadow-xs`}
+              />
+              <GraduationCap className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              {kelas.trim() && (
+                <div className="absolute right-2 top-1.5 flex items-center gap-1">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${themeAccent.badge}`}>
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{kelas.trim()}</span>
+                  </span>
+                </div>
+              )}
+              <datalist id="quick-gen-senarai-kelas">
+                {senaraiCadanganKelas.map((k) => (
+                  <option key={k} value={k} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* Quick Pills */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <span>Cadangan Pantas Kelas ({tingkatan}):</span>
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {senaraiCadanganKelas.length} pilihan
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-white/70 rounded-xl border border-slate-200/50">
+                {senaraiCadanganKelas.map((namaKelas) => {
+                  const isSelected = kelas.trim().toLowerCase() === namaKelas.trim().toLowerCase();
+                  return (
+                    <button
+                      key={namaKelas}
+                      type="button"
+                      onClick={() => setKelas(namaKelas)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border flex items-center gap-1 ${
+                        isSelected
+                          ? themeAccent.pillActive
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      {isSelected && <CheckCircle2 className="w-3 h-3 fill-current" />}
+                      <span>{namaKelas}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* 2. Chapter selector */}
+        {/* 3. Chapter selector */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700">
-            2. Pilih Bab / Topik / Program Khas (Ulangkaji / Slot Gemilang / Mumtaz)
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold">3</span>
+            <span>Pilih Bab / Topik / Program Khas (Ulangkaji / Slot Gemilang / Mumtaz)</span>
           </label>
           <select
             value={selectedBabId}
@@ -484,11 +734,12 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
           </select>
         </div>
 
-        {/* 3. SK selector */}
+        {/* 4. SK selector */}
         {activeBab && (
           <div className="space-y-1.5 animate-in fade-in">
-            <label className="text-xs font-bold text-slate-700">
-              3. Pilih Standard Kandungan (SK)
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold">4</span>
+              <span>Pilih Standard Kandungan (SK)</span>
             </label>
             <select
               value={selectedSkKod}
@@ -514,12 +765,13 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
           </div>
         )}
 
-        {/* 4. Multi-SP selector */}
+        {/* 5. Multi-SP selector */}
         {activeBab && activeSk && (
           <div className="space-y-1.5 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700">
-                4. Pilih Standard Pembelajaran (SP) — Boleh Pilih &gt;1
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold">5</span>
+                <span>Pilih Standard Pembelajaran (SP) — Boleh Pilih &gt;1</span>
               </label>
               <button
                 type="button"
@@ -578,14 +830,17 @@ export const QuickGeneratorModal: React.FC<QuickGeneratorModalProps> = ({
             <p className="font-bold flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>
-                Sedia Dijana ({selectedSpKods.length} SP •{' '}
+                Sedia Dijana ({subjek} • {tingkatan} • Kelas: {kelas.trim() || getDefaultClassForTingkatan(tingkatan)} • {selectedSpKods.length} SP •{' '}
                 {bahasa === 'DLP' ? 'DLP English' : 'Bahasa Melayu'} • Kehadiran: {kehadiranMurid} •{' '}
                 {isCompact ? 'Compact 1 Muka Surat' : 'Standard'}):
               </span>
             </p>
             <p className="text-slate-600 pl-5">
               Objektif SMART, Kriteria Kejayaan, Aktiviti, BBM {subjek}, PAK-21,
-              KBAT &amp; Refleksi akan digabungkan secara automatik.
+              KBAT &amp; Refleksi akan digabungkan secara automatik untuk kelas{' '}
+              <strong className="text-emerald-950 font-extrabold underline decoration-emerald-500">
+                {kelas.trim() || getDefaultClassForTingkatan(tingkatan)}
+              </strong>.
             </p>
           </div>
         )}

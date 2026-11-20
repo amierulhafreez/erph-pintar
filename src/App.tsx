@@ -483,7 +483,7 @@ export default function App() {
     // Quick generator apply
     const handleApplyQuickGen = async (newRph: RPHData) => {
       const allowed = checkAndRecordTrialGeneration(
-        `Mod Pantas 30s (${newRph.bahasa || 'BM'}): ${newRph.info.tingkatan} • ${newRph.babTajuk} • SP (${newRph.spKod.join(', ')})`,
+        `Mod Pantas 30s (${newRph.bahasa || 'BM'}): ${newRph.info.tingkatan} (${newRph.info.kelas}) • ${newRph.babTajuk} • SP (${newRph.spKod.join(', ')})`,
         newRph.id
       );
       if (!allowed) {
