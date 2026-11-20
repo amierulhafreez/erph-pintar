@@ -552,6 +552,8 @@ export default function App() {
         onBackToTrial={
           remainingTrials > 0
             ? () => {
+                simpanSesiPercubaanTempatan(true);
+                setLocalTrialSession(true);
                 setShowUpgradeGate(false);
               }
             : undefined
